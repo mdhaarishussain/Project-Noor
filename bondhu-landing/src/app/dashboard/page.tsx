@@ -328,12 +328,12 @@ export default function DashboardPage() {
           </TabsList>
 
           {/* Entertainment Tab */}
-          <TabsContent value="entertainment" className="space-y-6">
+          <TabsContent value="entertainment" id="entertainment-section" className="space-y-6">
             <EntertainmentHub profile={profile} />
           </TabsContent>
 
           {/* Profile Tab */}
-          <TabsContent value="profile" className="space-y-6">
+          <TabsContent value="profile" id="profile-section" className="space-y-6">
             {/* Breadcrumb Navigation */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
@@ -360,7 +360,7 @@ export default function DashboardPage() {
           </TabsContent>
 
           {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
+          <TabsContent value="settings" id="settings-section" className="space-y-6">
             {/* Breadcrumb Navigation */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
