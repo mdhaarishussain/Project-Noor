@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
-import { MessageCircle, User, Settings, Play, Send, Mic, Heart, Sword, Shield, Zap, Volume2, TrendingUp, BarChart3, Camera, Headphones, Gamepad2, Pause } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { MessageCircle, User, Settings, Play, Send, Mic, Heart, Sword, Shield, Zap, Volume2, TrendingUp, BarChart3, Camera, Headphones, Gamepad2, Pause, AlertTriangle, Trash2, ChevronDown, LogOut } from "lucide-react"
 import type { Profile } from "@/types/auth"
 import { Logo } from "@/components/logo"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [activeSection, setActiveSection] = useState('chat')
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -67,6 +69,21 @@ export default function DashboardPage() {
     getProfile()
   }, [supabase, router])
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isUserDropdownOpen) {
+        const dropdown = document.querySelector('.user-dropdown-container')
+        if (dropdown && !dropdown.contains(event.target as Node)) {
+          setIsUserDropdownOpen(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isUserDropdownOpen])
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/')
@@ -98,147 +115,194 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 relative overflow-hidden">
       {/* Background Animation */}
       <HeroBackground intensity="subtle" className="opacity-30" />
-      
+
       <div className="relative z-10">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            {/* Logo Section */}
-          <div className="flex items-center space-x-4">
-              <Link href="/" className="flex items-center">
-                <Logo width={140} height={50} />
-              </Link>
-              <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold text-muted-foreground">Dashboard</h1>
-            </div>
-          </div>
-
-            {/* Right Section */}
-            <div className="flex items-center space-x-3">
-              <ThemeToggle />
-            <Avatar>
-              <AvatarFallback>
-                {profile.full_name?.split(' ').map(n => n[0]).join('') || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="hidden md:block">
-              <p className="text-sm font-medium">{profile.full_name}</p>
-              <p className="text-xs text-muted-foreground">Level 1 Explorer</p>
-            </div>
-              <Button variant="outline" onClick={handleSignOut} size="sm">
-              Sign Out
-            </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        {/* Compact Welcome Section */}
-        <DashboardWelcome userName={profile.full_name?.split(' ')[0] || 'Friend'} compact={true} />
-
-        {/* Main Dashboard Layout - 50% Chat + 50% Explore More */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
-          {/* Chat Section - 50% width */}
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-bold">Chat with Bondhu</h3>
-                <p className="text-muted-foreground">Your AI companion is ready to listen and support you</p>
+        {/* Header */}
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex h-16 items-center justify-between">
+              {/* Logo Section */}
+              <div className="flex items-center space-x-4">
+                <Link href="/" className="flex items-center">
+                  <Logo width={140} height={50} />
+                </Link>
+                <div className="hidden sm:block">
+                  <h1 className="text-lg font-semibold text-muted-foreground">Dashboard</h1>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span>Online</span>
+
+              {/* Right Section */}
+              <div className="flex items-center space-x-3">
+                <ThemeToggle />
+
+                {/* User Dropdown Menu */}
+                <div className="relative user-dropdown-container">
+                  <Button
+                    variant="ghost"
+                    className="flex items-center space-x-2 h-auto p-2"
+                    onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                  >
+                    <Avatar>
+                      <AvatarFallback>
+                        {profile.full_name?.split(' ').map(n => n[0]).join('') || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden md:block text-left">
+                      <p className="text-sm font-medium">{profile.full_name}</p>
+                      <p className="text-xs text-muted-foreground">Level 1 Explorer</p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+
+                  {/* Dropdown Content */}
+                  {isUserDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 z-50 min-w-[14rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
+                      <div className="flex items-center space-x-2 p-2">
+                        <Avatar>
+                          <AvatarFallback>
+                            {profile.full_name?.split(' ').map(n => n[0]).join('') || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium">{profile.full_name}</p>
+                          <p className="text-xs text-muted-foreground">Level 1 Explorer</p>
+                        </div>
+                      </div>
+                      <div className="-mx-1 my-1 h-px bg-muted" />
+                      <div
+                        className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                        onClick={() => {
+                          router.push('/profile')
+                          setIsUserDropdownOpen(false)
+                        }}
+                      >
+                        <User className="mr-2 h-4 w-4" />
+                        <span>Profile</span>
+                      </div>
+                      <div className="-mx-1 my-1 h-px bg-muted" />
+                      <div
+                        className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                        onClick={() => {
+                          handleSignOut()
+                          setIsUserDropdownOpen(false)
+                        }}
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Logout</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-            <EnhancedChat profile={profile} />
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="container mx-auto px-4 py-6">
+          {/* Compact Welcome Section */}
+          <DashboardWelcome userName={profile.full_name?.split(' ')[0] || 'Friend'} compact={true} />
+
+          {/* Main Dashboard Layout - 50% Chat + 50% Explore More */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
+            {/* Chat Section - 50% width */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold">Chat with Bondhu</h3>
+                  <p className="text-muted-foreground">Your AI companion is ready to listen and support you</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span>Online</span>
+                  </div>
+                </div>
+              </div>
+              <EnhancedChat profile={profile} />
+            </div>
+
+            {/* Right Column - Explore More + Your Progress */}
+            <div className="space-y-8">
+              {/* Explore More Section */}
+              <div>
+                <div className="mb-4">
+                  <h3 className="text-xl font-bold">Explore More</h3>
+                  <p className="text-sm text-muted-foreground">Discover features and tools for your mental wellness journey</p>
+                </div>
+                <DashboardGrid
+                  onSectionChange={setActiveSection}
+                  activeSection={activeSection}
+                />
+              </div>
+
+              {/* Your Progress Section */}
+              <div>
+                <div className="mb-4">
+                  <h3 className="text-xl font-bold">Your Progress</h3>
+                  <p className="text-sm text-muted-foreground">Track your mental wellness journey</p>
+                </div>
+                <DashboardStats />
+              </div>
+            </div>
           </div>
 
-          {/* Right Column - Explore More + Your Progress */}
-          <div className="space-y-8">
-            {/* Explore More Section */}
-            <div>
-              <div className="mb-4">
-                <h3 className="text-xl font-bold">Explore More</h3>
-                <p className="text-sm text-muted-foreground">Discover features and tools for your mental wellness journey</p>
+          {/* Additional Dashboard Tabs - Now Secondary */}
+          <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-8 h-12">
+              <TabsTrigger value="chat" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
+                <MessageCircle className="h-4 w-4" />
+                <span className="text-xs sm:text-sm font-medium">Chat</span>
+              </TabsTrigger>
+              <TabsTrigger value="entertainment" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
+                <Play className="h-4 w-4" />
+                <span className="text-xs sm:text-sm font-medium">Entertainment</span>
+              </TabsTrigger>
+              <TabsTrigger value="profile" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
+                <User className="h-4 w-4" />
+                <span className="text-xs sm:text-sm font-medium">Profile</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
+                <Settings className="h-4 w-4" />
+                <span className="text-xs sm:text-sm font-medium">Settings</span>
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Chat Tab */}
+            <TabsContent value="chat" id="chat-section" className="space-y-6">
+              <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-border">
+                <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Main Chat Above</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Your primary chat with Bondhu is featured above for easy access.
+                  Scroll up to continue your conversation with your AI companion.
+                </p>
+                <Button
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="mt-4"
+                  variant="outline"
+                >
+                  Go to Chat
+                </Button>
               </div>
-              <DashboardGrid 
-                onSectionChange={setActiveSection}
-                activeSection={activeSection}
-              />
-            </div>
+            </TabsContent>
 
-            {/* Your Progress Section */}
-            <div>
-              <div className="mb-4">
-                <h3 className="text-xl font-bold">Your Progress</h3>
-                <p className="text-sm text-muted-foreground">Track your mental wellness journey</p>
-              </div>
-              <DashboardStats />
-            </div>
-          </div>
-        </div>
+            {/* Entertainment Tab */}
+            <TabsContent value="entertainment" id="entertainment-section" className="space-y-6">
+              <EntertainmentHub profile={profile} />
+            </TabsContent>
 
-        {/* Additional Dashboard Tabs - Now Secondary */}
-        <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8 h-12">
-            <TabsTrigger value="chat" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
-              <MessageCircle className="h-4 w-4" />
-              <span className="text-xs sm:text-sm font-medium">Chat</span>
-            </TabsTrigger>
-            <TabsTrigger value="entertainment" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
-              <Play className="h-4 w-4" />
-              <span className="text-xs sm:text-sm font-medium">Entertainment</span>
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
-              <User className="h-4 w-4" />
-              <span className="text-xs sm:text-sm font-medium">Profile</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2">
-              <Settings className="h-4 w-4" />
-              <span className="text-xs sm:text-sm font-medium">Settings</span>
-            </TabsTrigger>
-          </TabsList>
+            {/* Profile Tab */}
+            <TabsContent value="profile" id="profile-section" className="space-y-6">
+              <ProfileDashboard profile={profile} />
+            </TabsContent>
 
-          {/* Chat Tab */}
-          <TabsContent value="chat" className="space-y-6">
-            <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-border">
-              <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Main Chat Above</h3>
-              <p className="text-muted-foreground max-w-md mx-auto">
-                Your primary chat with Bondhu is featured above for easy access. 
-                Scroll up to continue your conversation with your AI companion.
-              </p>
-              <Button 
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="mt-4"
-                variant="outline"
-              >
-                Go to Chat
-              </Button>
-            </div>
-          </TabsContent>
-
-          {/* Entertainment Tab */}
-          <TabsContent value="entertainment" className="space-y-6">
-            <EntertainmentHub profile={profile} />
-          </TabsContent>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile" className="space-y-6">
-            <ProfileDashboard profile={profile} />
-          </TabsContent>
-
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
-            <SettingsPanel profile={profile} />
-          </TabsContent>
-        </Tabs>
-      </main>
+            {/* Settings Tab */}
+            <TabsContent value="settings" id="settings-section" className="space-y-6">
+              <SettingsPanel profile={profile} />
+            </TabsContent>
+          </Tabs>
+        </main>
       </div>
     </div>
   )
@@ -246,28 +310,119 @@ export default function DashboardPage() {
 
 // Chat Interface Component
 function ChatInterface({ profile }: { profile: Profile }) {
-  const [messages, setMessages] = useState([
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
+
+  // Chat session management
+  const [chatSessions, setChatSessions] = useState([
     {
       id: 1,
-      sender: 'bondhu',
-      message: `Hello ${profile.full_name?.split(' ')[0] || 'Friend'}! I'm Bondhu, your AI companion. I've reviewed your personality profile and I'm excited to support you on your journey. How are you feeling today? 🌟`,
-      timestamp: new Date().toLocaleTimeString(),
+      name: "Welcome Chat",
+      messages: [
+        {
+          id: 1,
+          sender: 'bondhu',
+          message: `Hello ${profile.full_name?.split(' ')[0] || 'Friend'}! I'm Bondhu, your AI companion. I've reviewed your personality profile and I'm excited to support you on your journey. How are you feeling today? 🌟`,
+          timestamp: new Date().toLocaleTimeString(),
+        }
+      ],
+      createdAt: new Date()
     }
   ])
+  const [activeChatId, setActiveChatId] = useState(1)
   const [newMessage, setNewMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [editingChatId, setEditingChatId] = useState<number | null>(null)
+  const [editingName, setEditingName] = useState('')
 
-  const sendMessage = async () => {
+  // Get current chat session
+  const currentChat = chatSessions.find(chat => chat.id === activeChatId)
+  const messages = currentChat?.messages || []
+
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }
+
+  // Auto-scroll when messages change
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, isTyping])
+
+  // Create new chat session
+  const createNewChat = () => {
+    const newChatId = Date.now()
+    const newChat = {
+      id: newChatId,
+      name: "New Chat",
+      messages: [
+        {
+          id: Date.now(),
+          sender: 'bondhu' as const,
+          message: `Hi ${profile.full_name?.split(' ')[0] || 'Friend'}! I'm ready for a new conversation. What's on your mind? 🌟`,
+          timestamp: new Date().toLocaleTimeString(),
+        }
+      ],
+      createdAt: new Date()
+    }
+    setChatSessions(prev => [...prev, newChat])
+    setActiveChatId(newChatId)
+  }
+
+  // Rename chat session
+  const renameChat = (chatId: number, newName: string) => {
+    setChatSessions(prev =>
+      prev.map(chat =>
+        chat.id === chatId ? { ...chat, name: newName.trim() || 'Untitled Chat' } : chat
+      )
+    )
+    setEditingChatId(null)
+    setEditingName('')
+  }
+
+  // Delete chat session
+  const deleteChat = (chatId: number) => {
+    if (chatSessions.length === 1) return // Don't delete the last chat
+
+    setChatSessions(prev => prev.filter(chat => chat.id !== chatId))
+    if (activeChatId === chatId) {
+      setActiveChatId(chatSessions.find(chat => chat.id !== chatId)?.id || chatSessions[0].id)
+    }
+  }
+
+  const sendMessage = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
     if (!newMessage.trim()) return
 
     const userMessage = {
       id: Date.now(),
-      sender: 'user',
+      sender: 'user' as const,
       message: newMessage,
       timestamp: new Date().toLocaleTimeString(),
     }
 
-    setMessages(prev => [...prev, userMessage])
+    const messageToSend = newMessage
+
+    // Update the current chat session with the new message
+    setChatSessions(prev =>
+      prev.map(chat =>
+        chat.id === activeChatId
+          ? {
+            ...chat,
+            messages: [...chat.messages, userMessage],
+            // Auto-name the chat based on first user message (if it's still "New Chat")
+            name: chat.name === "New Chat" && chat.messages.length === 1
+              ? messageToSend.slice(0, 30) + (messageToSend.length > 30 ? "..." : "")
+              : chat.name
+          }
+          : chat
+      )
+    )
+
     setNewMessage('')
     setIsTyping(true)
 
@@ -283,12 +438,19 @@ function ChatInterface({ profile }: { profile: Profile }) {
 
       const aiMessage = {
         id: Date.now() + 1,
-        sender: 'bondhu',
+        sender: 'bondhu' as const,
         message: personalizedResponses[Math.floor(Math.random() * personalizedResponses.length)],
         timestamp: new Date().toLocaleTimeString(),
       }
 
-      setMessages(prev => [...prev, aiMessage])
+      // Add AI response to current chat session
+      setChatSessions(prev =>
+        prev.map(chat =>
+          chat.id === activeChatId
+            ? { ...chat, messages: [...chat.messages, aiMessage] }
+            : chat
+        )
+      )
       setIsTyping(false)
     }, 1000 + Math.random() * 2000)
   }
@@ -302,7 +464,90 @@ function ChatInterface({ profile }: { profile: Profile }) {
   ]
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
+    <div className="grid lg:grid-cols-4 gap-6">
+      {/* Chat Sessions Sidebar */}
+      <div className="lg:col-span-1">
+        <Card className="h-[600px] flex flex-col">
+          <CardHeader className="border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Chat Sessions</CardTitle>
+              <Button onClick={createNewChat} size="sm" variant="outline">
+                <MessageCircle className="h-4 w-4 mr-1" />
+                New Chat
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-y-auto p-2">
+            <div className="space-y-2">
+              {chatSessions.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${activeChatId === chat.id
+                      ? 'bg-primary/10 border-primary'
+                      : 'hover:bg-muted border-transparent'
+                    }`}
+                  onClick={() => setActiveChatId(chat.id)}
+                >
+                  {editingChatId === chat.id ? (
+                    <Input
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onBlur={() => renameChat(chat.id, editingName)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          renameChat(chat.id, editingName)
+                        } else if (e.key === 'Escape') {
+                          setEditingChatId(null)
+                          setEditingName('')
+                        }
+                      }}
+                      className="h-6 text-xs"
+                      autoFocus
+                    />
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{chat.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {chat.messages.length} messages
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-1 ml-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingChatId(chat.id)
+                            setEditingName(chat.name)
+                          }}
+                        >
+                          <Settings className="h-3 w-3" />
+                        </Button>
+                        {chatSessions.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteChat(chat.id)
+                            }}
+                          >
+                            ×
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Main Chat */}
       <div className="lg:col-span-2">
         <Card className="h-[600px] flex flex-col">
@@ -314,7 +559,7 @@ function ChatInterface({ profile }: { profile: Profile }) {
                 </div>
                 <div>
                   <CardTitle>Bondhu AI Companion</CardTitle>
-                  <p className="text-sm text-muted-foreground">Always here for you</p>
+                  <p className="text-sm text-muted-foreground">{currentChat?.name || 'Chat'}</p>
                 </div>
               </div>
               <Badge variant="secondary" className="bg-green-100 text-green-800">
@@ -323,7 +568,7 @@ function ChatInterface({ profile }: { profile: Profile }) {
             </div>
           </CardHeader>
 
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatContainerRef}>
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -331,8 +576,8 @@ function ChatInterface({ profile }: { profile: Profile }) {
               >
                 <div
                   className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${msg.sender === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted'
                     }`}
                 >
                   <p className="text-sm">{msg.message}</p>
@@ -352,24 +597,30 @@ function ChatInterface({ profile }: { profile: Profile }) {
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </CardContent>
 
           <div className="p-4 border-t">
-            <div className="flex space-x-2">
+            <form onSubmit={sendMessage} className="flex space-x-2">
               <Input
                 placeholder="Type your message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    sendMessage()
+                  }
+                }}
                 className="flex-1"
               />
-              <Button onClick={sendMessage} size="icon">
+              <Button type="submit" size="icon">
                 <Send className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon">
+              <Button type="button" variant="outline" size="icon">
                 <Mic className="h-4 w-4" />
               </Button>
-            </div>
+            </form>
           </div>
         </Card>
       </div>
@@ -518,13 +769,13 @@ function GamingSection({ profile }: { profile: Profile }) {
   const handleGameComplete = (gameData: any) => {
     setGameResults(prev => [...prev, gameData])
     setSelectedGame(null)
-    
+
     // Send data to AI learning engine
     aiLearningEngine.addGameplayData(gameData)
-    
+
     // Here you would typically send the data to your analytics service
     console.log('Game completed:', gameData)
-    
+
     // Show completion message or insights
     // You could integrate with Bondhu AI here to provide immediate feedback
   }
@@ -695,10 +946,10 @@ function VideoSection({ profile }: { profile: Profile }) {
   const handleVideoComplete = (watchData: any) => {
     setWatchHistory(prev => [...prev, watchData])
     setSelectedVideo(null)
-    
+
     // Send data to AI learning engine
     aiLearningEngine.addVideoData(watchData)
-    
+
     // Here you would send analytics to your backend
     console.log('Video watch completed:', watchData)
   }
@@ -822,50 +1073,50 @@ function MusicSection({ profile }: { profile: Profile }) {
   const [volume, setVolume] = useState(0.7)
 
   const moods = [
-    { 
-      name: 'Focus', 
-      emoji: '🎯', 
-      color: 'bg-blue-100', 
+    {
+      name: 'Focus',
+      emoji: '🎯',
+      color: 'bg-blue-100',
       description: 'Deep work and concentration',
       gradient: 'from-blue-500 to-cyan-500',
       hoverGradient: 'from-blue-600 to-cyan-600'
     },
-    { 
-      name: 'Relax', 
-      emoji: '🌊', 
-      color: 'bg-green-100', 
+    {
+      name: 'Relax',
+      emoji: '🌊',
+      color: 'bg-green-100',
       description: 'Calm and peaceful',
       gradient: 'from-green-500 to-emerald-500',
       hoverGradient: 'from-green-600 to-emerald-600'
     },
-    { 
-      name: 'Energy', 
-      emoji: '⚡', 
-      color: 'bg-orange-100', 
+    {
+      name: 'Energy',
+      emoji: '⚡',
+      color: 'bg-orange-100',
       description: 'Upbeat and motivating',
       gradient: 'from-orange-500 to-red-500',
       hoverGradient: 'from-orange-600 to-red-600'
     },
-    { 
-      name: 'Creative', 
-      emoji: '🎨', 
-      color: 'bg-purple-100', 
+    {
+      name: 'Creative',
+      emoji: '🎨',
+      color: 'bg-purple-100',
       description: 'Inspiration and flow',
       gradient: 'from-purple-500 to-pink-500',
       hoverGradient: 'from-purple-600 to-pink-600'
     },
-    { 
-      name: 'Social', 
-      emoji: '🎉', 
-      color: 'bg-pink-100', 
+    {
+      name: 'Social',
+      emoji: '🎉',
+      color: 'bg-pink-100',
       description: 'Social and uplifting',
       gradient: 'from-pink-500 to-rose-500',
       hoverGradient: 'from-pink-600 to-rose-600'
     },
-    { 
-      name: 'Sleep', 
-      emoji: '😴', 
-      color: 'bg-indigo-100', 
+    {
+      name: 'Sleep',
+      emoji: '😴',
+      color: 'bg-indigo-100',
       description: 'Wind down and rest',
       gradient: 'from-indigo-500 to-purple-500',
       hoverGradient: 'from-indigo-600 to-purple-600'
@@ -945,7 +1196,7 @@ function MusicSection({ profile }: { profile: Profile }) {
     setCurrentTrack({ ...track, playlist: playlist.name, mood: playlist.mood })
     setIsPlaying(true)
     setCurrentTime(0)
-    
+
     // Track listening analytics
     const listeningData = {
       trackId: track.id,
@@ -960,10 +1211,10 @@ function MusicSection({ profile }: { profile: Profile }) {
       activity_context: 'entertainment',
       social_context: 'alone' as const
     }
-    
+
     // Send to AI learning engine
     aiLearningEngine.addMusicData(listeningData)
-    
+
     setListeningHistory(prev => [...prev, {
       trackId: track.id,
       sessionId: listeningData.sessionId,
@@ -1004,8 +1255,8 @@ function MusicSection({ profile }: { profile: Profile }) {
             onClick={() => setSelectedMood(mood.name)}
             className={`
               relative overflow-hidden rounded-xl p-6 cursor-pointer transition-all duration-300 ease-in-out transform hover:scale-105 group
-              ${selectedMood === mood.name 
-                ? `bg-gradient-to-br ${mood.gradient} text-white shadow-lg shadow-${mood.gradient.split('-')[1]}-500/25` 
+              ${selectedMood === mood.name
+                ? `bg-gradient-to-br ${mood.gradient} text-white shadow-lg shadow-${mood.gradient.split('-')[1]}-500/25`
                 : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
               }
             `}
@@ -1014,7 +1265,7 @@ function MusicSection({ profile }: { profile: Profile }) {
             {selectedMood === mood.name && (
               <div className={`absolute inset-0 bg-gradient-to-br ${mood.hoverGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
             )}
-            
+
             {/* Content */}
             <div className="relative z-10 flex flex-col items-center text-center space-y-2">
               <div className={`
@@ -1025,8 +1276,8 @@ function MusicSection({ profile }: { profile: Profile }) {
               </div>
               <h3 className={`
                 font-semibold text-sm 
-                ${selectedMood === mood.name 
-                  ? 'text-white' 
+                ${selectedMood === mood.name
+                  ? 'text-white'
                   : 'text-gray-900 dark:text-gray-100'
                 }
               `}>
@@ -1034,8 +1285,8 @@ function MusicSection({ profile }: { profile: Profile }) {
               </h3>
               <p className={`
                 text-xs leading-tight
-                ${selectedMood === mood.name 
-                  ? 'text-white/80' 
+                ${selectedMood === mood.name
+                  ? 'text-white/80'
                   : 'text-gray-500 dark:text-gray-400'
                 }
               `}>
@@ -1245,7 +1496,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
     const interval = setInterval(() => {
       setRefreshKey(prev => prev + 1)
     }, 30000) // Refresh every 30 seconds
-    
+
     return () => clearInterval(interval)
   }, [])
 
@@ -1277,7 +1528,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-6">
       {/* Advanced Personality Overview */}
-      <PersonalityRadarAdvanced 
+      <PersonalityRadarAdvanced
         personalityData={personalityData}
         entertainmentInsights={entertainmentInsights}
       />
@@ -1336,7 +1587,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
                   <span className="text-sm">Creativity</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-16 h-2 bg-gray-200 rounded-full">
-                      <div 
+                      <div
                         className="h-2 bg-purple-500 rounded-full"
                         style={{ width: `${aiInsights.entertainmentProfile.gaming.creativityScore}%` }}
                       ></div>
@@ -1348,7 +1599,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
                   <span className="text-sm">Persistence</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-16 h-2 bg-gray-200 rounded-full">
-                      <div 
+                      <div
                         className="h-2 bg-blue-500 rounded-full"
                         style={{ width: `${aiInsights.entertainmentProfile.gaming.persistenceLevel}%` }}
                       ></div>
@@ -1379,7 +1630,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
                   <span className="text-sm">Completion Rate</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-16 h-2 bg-gray-200 rounded-full">
-                      <div 
+                      <div
                         className="h-2 bg-green-500 rounded-full"
                         style={{ width: `${aiInsights.entertainmentProfile.video.engagementPatterns.completionRate}%` }}
                       ></div>
@@ -1414,7 +1665,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
                   <span className="text-sm">Focus Preference</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-16 h-2 bg-gray-200 rounded-full">
-                      <div 
+                      <div
                         className="h-2 bg-orange-500 rounded-full"
                         style={{ width: `${aiInsights.entertainmentProfile.music.listeningBehavior.focus_music_preference}%` }}
                       ></div>
@@ -1426,7 +1677,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
                   <span className="text-sm">Musical Sophistication</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-16 h-2 bg-gray-200 rounded-full">
-                      <div 
+                      <div
                         className="h-2 bg-indigo-500 rounded-full"
                         style={{ width: `${aiInsights.entertainmentProfile.music.musicalSophistication}%` }}
                       ></div>
@@ -1523,11 +1774,10 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                       <span className="text-sm font-medium capitalize">{trend.trait}</span>
                       <div className="flex items-center space-x-2">
-                        <span className={`text-sm ${
-                          trend.trend === 'increasing' ? 'text-green-600' : 
-                          trend.trend === 'decreasing' ? 'text-red-600' : 'text-gray-600'
-                        }`}>
-                          {trend.trend === 'increasing' ? '↗️' : trend.trend === 'decreasing' ? '↘️' : '➡️'} 
+                        <span className={`text-sm ${trend.trend === 'increasing' ? 'text-green-600' :
+                            trend.trend === 'decreasing' ? 'text-red-600' : 'text-gray-600'
+                          }`}>
+                          {trend.trend === 'increasing' ? '↗️' : trend.trend === 'decreasing' ? '↘️' : '➡️'}
                           {trend.trend}
                         </span>
                         <Badge variant="outline">{trend.confidence}%</Badge>
@@ -1561,7 +1811,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
 
       {/* Manual Refresh */}
       <div className="flex justify-center">
-        <Button 
+        <Button
           onClick={() => setRefreshKey(prev => prev + 1)}
           variant="outline"
           className="flex items-center space-x-2"
@@ -1618,6 +1868,9 @@ function PersonalityRadarChart({ profile }: { profile: Profile }) {
 
 // Settings Panel Component
 function SettingsPanel({ profile }: { profile: Profile }) {
+  const router = useRouter()
+  const supabase = createClient()
+
   const [dataSettings, setDataSettings] = useState({
     gamingData: true,
     videoData: true,
@@ -1632,6 +1885,9 @@ function SettingsPanel({ profile }: { profile: Profile }) {
 
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [deleteStatus, setDeleteStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [deleteAccountStatus, setDeleteAccountStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [confirmationText, setConfirmationText] = useState('')
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const handleSettingChange = (setting: string, value: boolean | number | string) => {
     setDataSettings(prev => ({ ...prev, [setting]: value }))
@@ -1639,12 +1895,53 @@ function SettingsPanel({ profile }: { profile: Profile }) {
     console.log('Updated setting:', setting, value)
   }
 
+  // Smooth Toggle Button Component
+  const SmoothToggle = ({
+    enabled,
+    onToggle,
+    enabledText = 'Enabled',
+    disabledText = 'Disabled'
+  }: {
+    enabled: boolean
+    onToggle: () => void
+    enabledText?: string
+    disabledText?: string
+  }) => (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onToggle}
+      className={`
+        relative overflow-hidden transition-all duration-300 ease-in-out transform
+        hover:scale-105 hover:shadow-lg active:scale-95
+        ${enabled
+          ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
+          : 'bg-background text-foreground border-border hover:bg-muted'
+        }
+      `}
+    >
+      <span className="relative z-10">
+        {enabled ? enabledText : disabledText}
+      </span>
+      {/* Animated background effect */}
+      <div
+        className={`
+          absolute inset-0 bg-gradient-to-r transition-all duration-500 ease-in-out
+          ${enabled
+            ? 'from-primary/20 to-primary/10 opacity-100'
+            : 'from-muted/20 to-muted/10 opacity-0'
+          }
+        `}
+      />
+    </Button>
+  )
+
   const handleExportData = async () => {
     setExportStatus('loading')
     try {
       // Get all data from AI learning engine
       const exportData = aiLearningEngine.exportForExternalAnalysis()
-      
+
       // Add user profile data
       const fullExport = {
         profile: {
@@ -1687,7 +1984,7 @@ function SettingsPanel({ profile }: { profile: Profile }) {
     try {
       // In real app, this would call backend API
       console.log('Deleting data type:', dataType)
-      
+
       // For demo, we'll clear the AI learning engine data
       if (dataType === 'all') {
         // Would reset the entire learning engine
@@ -1700,6 +1997,66 @@ function SettingsPanel({ profile }: { profile: Profile }) {
       console.error('Delete failed:', error)
       setDeleteStatus('error')
       setTimeout(() => setDeleteStatus('idle'), 3000)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (confirmationText !== 'DELETE MY ACCOUNT') {
+      return
+    }
+
+    setDeleteAccountStatus('loading')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        throw new Error('No user found')
+      }
+
+      // Delete user profile and related data from Supabase
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.id)
+
+      if (profileError) {
+        console.error('Profile deletion error:', profileError)
+      }
+
+      // Delete any other user-related data (chat messages, recommendations, etc.)
+      const tables = ['chat_messages', 'recommendations', 'onboarding_answers', 'personality_traits']
+
+      for (const table of tables) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('user_id', user.id)
+
+        if (error) {
+          console.error(`Error deleting from ${table}:`, error)
+        }
+      }
+
+      // Finally, delete the auth user (this will also trigger cascading deletes)
+      const { error: authError } = await supabase.auth.admin.deleteUser(user.id)
+
+      if (authError) {
+        console.error('Auth deletion error:', authError)
+        // If admin delete fails, try regular sign out
+        await supabase.auth.signOut()
+      }
+
+      setDeleteAccountStatus('success')
+
+      // Redirect to home page after successful deletion
+      setTimeout(() => {
+        router.push('/')
+      }, 2000)
+
+    } catch (error) {
+      console.error('Account deletion failed:', error)
+      setDeleteAccountStatus('error')
+      setTimeout(() => setDeleteAccountStatus('idle'), 3000)
     }
   }
 
@@ -1727,13 +2084,10 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                     <h5 className="font-medium">Gaming Analytics</h5>
                     <p className="text-sm text-muted-foreground">Track game choices, performance, and playing patterns</p>
                   </div>
-                  <Button
-                    variant={dataSettings.gamingData ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleSettingChange('gamingData', !dataSettings.gamingData)}
-                  >
-                    {dataSettings.gamingData ? 'Enabled' : 'Disabled'}
-                  </Button>
+                  <SmoothToggle
+                    enabled={dataSettings.gamingData}
+                    onToggle={() => handleSettingChange('gamingData', !dataSettings.gamingData)}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1741,13 +2095,10 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                     <h5 className="font-medium">Video Viewing Analytics</h5>
                     <p className="text-sm text-muted-foreground">Monitor watch time, completion rates, and content preferences</p>
                   </div>
-                  <Button
-                    variant={dataSettings.videoData ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleSettingChange('videoData', !dataSettings.videoData)}
-                  >
-                    {dataSettings.videoData ? 'Enabled' : 'Disabled'}
-                  </Button>
+                  <SmoothToggle
+                    enabled={dataSettings.videoData}
+                    onToggle={() => handleSettingChange('videoData', !dataSettings.videoData)}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1755,13 +2106,10 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                     <h5 className="font-medium">Music Listening Analytics</h5>
                     <p className="text-sm text-muted-foreground">Analyze listening habits, mood patterns, and genre preferences</p>
                   </div>
-                  <Button
-                    variant={dataSettings.musicData ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleSettingChange('musicData', !dataSettings.musicData)}
-                  >
-                    {dataSettings.musicData ? 'Enabled' : 'Disabled'}
-                  </Button>
+                  <SmoothToggle
+                    enabled={dataSettings.musicData}
+                    onToggle={() => handleSettingChange('musicData', !dataSettings.musicData)}
+                  />
                 </div>
               </div>
             </div>
@@ -1775,13 +2123,10 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                     <h5 className="font-medium">Personality Analytics</h5>
                     <p className="text-sm text-muted-foreground">Generate Big Five personality insights from behavior patterns</p>
                   </div>
-                  <Button
-                    variant={dataSettings.personalityAnalytics ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleSettingChange('personalityAnalytics', !dataSettings.personalityAnalytics)}
-                  >
-                    {dataSettings.personalityAnalytics ? 'Enabled' : 'Disabled'}
-                  </Button>
+                  <SmoothToggle
+                    enabled={dataSettings.personalityAnalytics}
+                    onToggle={() => handleSettingChange('personalityAnalytics', !dataSettings.personalityAnalytics)}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1789,13 +2134,10 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                     <h5 className="font-medium">AI Recommendations</h5>
                     <p className="text-sm text-muted-foreground">Receive personalized content and activity suggestions</p>
                   </div>
-                  <Button
-                    variant={dataSettings.aiRecommendations ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleSettingChange('aiRecommendations', !dataSettings.aiRecommendations)}
-                  >
-                    {dataSettings.aiRecommendations ? 'Enabled' : 'Disabled'}
-                  </Button>
+                  <SmoothToggle
+                    enabled={dataSettings.aiRecommendations}
+                    onToggle={() => handleSettingChange('aiRecommendations', !dataSettings.aiRecommendations)}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1803,13 +2145,10 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                     <h5 className="font-medium">Cross-Modal Insights</h5>
                     <p className="text-sm text-muted-foreground">Analyze patterns across different entertainment types</p>
                   </div>
-                  <Button
-                    variant={dataSettings.crossModalInsights ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleSettingChange('crossModalInsights', !dataSettings.crossModalInsights)}
-                  >
-                    {dataSettings.crossModalInsights ? 'Enabled' : 'Disabled'}
-                  </Button>
+                  <SmoothToggle
+                    enabled={dataSettings.crossModalInsights}
+                    onToggle={() => handleSettingChange('crossModalInsights', !dataSettings.crossModalInsights)}
+                  />
                 </div>
               </div>
             </div>
@@ -1845,13 +2184,12 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                 <h5 className="font-medium">Contribute to Research</h5>
                 <p className="text-sm text-muted-foreground">Share anonymized data to improve mental health AI research</p>
               </div>
-              <Button
-                variant={dataSettings.shareAnonymized ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleSettingChange('shareAnonymized', !dataSettings.shareAnonymized)}
-              >
-                {dataSettings.shareAnonymized ? 'Contributing' : 'Not Contributing'}
-              </Button>
+              <SmoothToggle
+                enabled={dataSettings.shareAnonymized}
+                onToggle={() => handleSettingChange('shareAnonymized', !dataSettings.shareAnonymized)}
+                enabledText="Contributing"
+                disabledText="Not Contributing"
+              />
             </div>
           </div>
         </CardContent>
@@ -1876,16 +2214,16 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                     Download all your data in JSON format
                   </p>
                 </div>
-                <Button 
+                <Button
                   onClick={handleExportData}
                   disabled={exportStatus === 'loading'}
                   className="flex items-center space-x-2"
                 >
                   {exportStatus === 'loading' && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
                   <span>
-                    {exportStatus === 'loading' ? 'Exporting...' : 
-                     exportStatus === 'success' ? 'Exported!' : 
-                     exportStatus === 'error' ? 'Error' : 'Export Data'}
+                    {exportStatus === 'loading' ? 'Exporting...' :
+                      exportStatus === 'success' ? 'Exported!' :
+                        exportStatus === 'error' ? 'Error' : 'Export Data'}
                   </span>
                 </Button>
               </div>
@@ -1931,32 +2269,32 @@ function SettingsPanel({ profile }: { profile: Profile }) {
             <div className="p-4 border border-red-200 rounded-lg">
               <h4 className="font-medium text-red-900 mb-3">Delete Specific Data</h4>
               <div className="grid gap-3">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full justify-start text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                   onClick={() => handleDeleteData('gaming')}
                   disabled={deleteStatus === 'loading'}
                 >
                   Delete Gaming Data
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full justify-start text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                   onClick={() => handleDeleteData('video')}
                   disabled={deleteStatus === 'loading'}
                 >
                   Delete Video Data
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full justify-start text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                   onClick={() => handleDeleteData('music')}
                   disabled={deleteStatus === 'loading'}
                 >
                   Delete Music Data
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full justify-start text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                   onClick={() => handleDeleteData('all')}
                   disabled={deleteStatus === 'loading'}
@@ -1986,13 +2324,19 @@ function SettingsPanel({ profile }: { profile: Profile }) {
               </div>
               <Badge variant="secondary">Active</Badge>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium">Email Notifications</h4>
                 <p className="text-sm text-muted-foreground">Weekly insights and recommendations</p>
               </div>
-              <Button variant="outline" size="sm">Configure</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="transition-all duration-300 hover:scale-105 hover:shadow-md active:scale-95"
+              >
+                Configure
+              </Button>
             </div>
 
             <div className="flex items-center justify-between">
@@ -2000,16 +2344,110 @@ function SettingsPanel({ profile }: { profile: Profile }) {
                 <h4 className="font-medium">Two-Factor Authentication</h4>
                 <p className="text-sm text-muted-foreground">Additional security for your account</p>
               </div>
-              <Button variant="outline" size="sm">Enable</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="transition-all duration-300 hover:scale-105 hover:shadow-md active:scale-95"
+              >
+                Enable
+              </Button>
             </div>
 
             <div className="pt-4 border-t">
-              <Button variant="outline" className="w-full text-red-600 hover:text-red-700">
+              <Button
+                variant="outline"
+                className="w-full text-red-600 hover:text-red-700 transition-all duration-300 hover:scale-105 hover:shadow-md active:scale-95 mb-2"
+              >
                 Deactivate Account
               </Button>
-              <p className="text-xs text-muted-foreground mt-2 text-center">
+              <p className="text-xs text-muted-foreground mb-4 text-center">
                 This will disable your account but preserve your data for 30 days
               </p>
+
+              {/* Delete Account Dialog */}
+              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    className="w-full transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Account Permanently
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2 text-red-600">
+                      <AlertTriangle className="h-5 w-5" />
+                      <span>Delete Account Permanently</span>
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg">
+                      <h4 className="font-medium text-red-800 dark:text-red-200 mb-2">
+                        This action cannot be undone!
+                      </h4>
+                      <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
+                        <li>• Your account will be permanently deleted</li>
+                        <li>• All your data will be removed from our servers</li>
+                        <li>• Your personality insights and chat history will be lost</li>
+                        <li>• You will be signed out immediately</li>
+                        <li>• This email address cannot be used to sign up again</li>
+                      </ul>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">
+                        Type <span className="font-bold text-red-600">"DELETE MY ACCOUNT"</span> to confirm:
+                      </label>
+                      <Input
+                        value={confirmationText}
+                        onChange={(e) => setConfirmationText(e.target.value)}
+                        placeholder="DELETE MY ACCOUNT"
+                        className="border-red-200 focus:border-red-400"
+                      />
+                    </div>
+
+                    <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Alternative:</strong> You can deactivate your account instead,
+                        which will preserve your data for 30 days in case you change your mind.
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter className="flex-col space-y-2">
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteAccount}
+                      disabled={confirmationText !== 'DELETE MY ACCOUNT' || deleteAccountStatus === 'loading'}
+                      className="w-full"
+                    >
+                      {deleteAccountStatus === 'loading' ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          Deleting Account...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Yes, Delete My Account Permanently
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsDeleteDialogOpen(false)
+                        setConfirmationText('')
+                        setDeleteAccountStatus('idle')
+                      }}
+                      className="w-full"
+                    >
+                      Cancel
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </CardContent>
@@ -2025,21 +2463,21 @@ function SettingsPanel({ profile }: { profile: Profile }) {
             <div>
               <h5 className="font-medium">Data Processing</h5>
               <p className="text-muted-foreground">
-                Your entertainment data is processed locally and encrypted before storage. 
+                Your entertainment data is processed locally and encrypted before storage.
                 AI analysis happens on secure servers with strict access controls.
               </p>
             </div>
             <div>
               <h5 className="font-medium">Data Sharing</h5>
               <p className="text-muted-foreground">
-                We never sell personal data. Anonymized research contributions are optional 
+                We never sell personal data. Anonymized research contributions are optional
                 and help improve mental health AI for everyone.
               </p>
             </div>
             <div>
               <h5 className="font-medium">Your Rights</h5>
               <p className="text-muted-foreground">
-                You have the right to access, correct, delete, or port your data at any time. 
+                You have the right to access, correct, delete, or port your data at any time.
                 Contact support for assistance with data requests.
               </p>
             </div>

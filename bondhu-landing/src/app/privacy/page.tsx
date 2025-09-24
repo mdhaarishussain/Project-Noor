@@ -6,22 +6,22 @@ export default function PrivacyPage() {
         <p className="text-lg mb-6">
           Last updated: {new Date().toLocaleDateString()}
         </p>
-        
+
         <h2 className="text-2xl font-semibold mt-8 mb-4">Information We Collect</h2>
         <p>
-          Bondhu collects information you provide directly to us, such as when you create an account, 
+          Bondhu collects information you provide directly to us, such as when you create an account,
           complete your personality assessment, or interact with our AI companion.
         </p>
 
         <h2 className="text-2xl font-semibold mt-8 mb-4">How We Use Your Information</h2>
         <p>
-          We use the information we collect to provide, maintain, and improve our services, 
+          We use the information we collect to provide, maintain, and improve our services,
           including personalizing your experience with our AI mental health companion.
         </p>
 
         <h2 className="text-2xl font-semibold mt-8 mb-4">Information Sharing</h2>
         <p>
-          We do not sell, trade, or otherwise transfer your personal information to third parties 
+          We do not sell, trade, or otherwise transfer your personal information to third parties
           without your consent, except as described in this privacy policy.
         </p>
 

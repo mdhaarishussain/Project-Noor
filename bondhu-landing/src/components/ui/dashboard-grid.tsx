@@ -10,6 +10,21 @@ interface DashboardGridProps {
 }
 
 export function DashboardGrid({ onSectionChange, activeSection }: DashboardGridProps) {
+  const handleSectionClick = (section: string) => {
+    onSectionChange(section);
+
+    // Smooth scroll to the section after a brief delay to allow tab change
+    setTimeout(() => {
+      const element = document.getElementById(`${section}-section`);
+      if (element) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+          inline: 'nearest'
+        });
+      }
+    }, 100);
+  };
   return (
     <div className="grid grid-cols-2 gap-4">
       <GridItem
@@ -17,7 +32,7 @@ export function DashboardGrid({ onSectionChange, activeSection }: DashboardGridP
         icon={<MessageCircle className="h-5 w-5" />}
         title="AI Chat Companion"
         description="Start a conversation with Bondhu, your personalized AI friend who understands your personality and adapts to your needs."
-        onClick={() => onSectionChange('chat')}
+        onClick={() => handleSectionClick('chat')}
         isActive={activeSection === 'chat'}
         gradient="from-blue-400/80 to-cyan-400/80"
         darkGradient="from-blue-500/60 to-cyan-500/60"
@@ -27,7 +42,7 @@ export function DashboardGrid({ onSectionChange, activeSection }: DashboardGridP
         icon={<Play className="h-5 w-5" />}
         title="Entertainment Hub"
         description="Explore games, videos, and music while Bondhu learns about your personality and preferences."
-        onClick={() => onSectionChange('entertainment')}
+        onClick={() => handleSectionClick('entertainment')}
         isActive={activeSection === 'entertainment'}
         gradient="from-violet-400/80 to-purple-400/80"
         darkGradient="from-violet-500/60 to-purple-500/60"
@@ -37,7 +52,7 @@ export function DashboardGrid({ onSectionChange, activeSection }: DashboardGridP
         icon={<Brain className="h-5 w-5" />}
         title="Personality Insights"
         description="Discover deep insights about yourself through AI-powered personality analysis and growth tracking."
-        onClick={() => onSectionChange('profile')}
+        onClick={() => handleSectionClick('profile')}
         isActive={activeSection === 'profile'}
         gradient="from-emerald-400/80 to-teal-400/80"
         darkGradient="from-emerald-500/60 to-teal-500/60"
@@ -47,7 +62,7 @@ export function DashboardGrid({ onSectionChange, activeSection }: DashboardGridP
         icon={<Settings className="h-5 w-5" />}
         title="Privacy & Settings"
         description="Manage your data, privacy preferences, and customize your Bondhu experience."
-        onClick={() => onSectionChange('settings')}
+        onClick={() => handleSectionClick('settings')}
         isActive={activeSection === 'settings'}
         gradient="from-slate-400/80 to-gray-400/80"
         darkGradient="from-slate-500/60 to-gray-500/60"
@@ -81,16 +96,16 @@ const GridItem = ({ icon, title, description, onClick, isActive, gradient, darkG
         />
         <div className={cn(
           "relative flex h-full flex-col justify-between gap-4 overflow-hidden rounded-xl border-[0.75px] p-4 shadow-sm transition-all duration-300",
-          isActive 
-            ? `bg-gradient-to-br ${gradient} dark:bg-gradient-to-br dark:${darkGradient} text-white backdrop-blur-sm shadow-lg` 
+          isActive
+            ? `bg-gradient-to-br ${gradient} dark:bg-gradient-to-br dark:${darkGradient} text-white backdrop-blur-sm shadow-lg`
             : "bg-card hover:bg-muted/30 dark:hover:bg-muted/20 backdrop-blur-sm"
         )}>
           <div className="relative flex flex-1 flex-col justify-between gap-3">
             <div className="flex items-start justify-between">
               <div className={cn(
                 "w-fit rounded-lg border-[0.75px] p-2 transition-all duration-300",
-                isActive 
-                  ? "border-white/30 bg-white/15 backdrop-blur-sm shadow-lg" 
+                isActive
+                  ? "border-white/30 bg-white/15 backdrop-blur-sm shadow-lg"
                   : "border-border bg-muted/70 dark:bg-muted/40 dark:border-border/50"
               )}>
                 {icon}
@@ -102,7 +117,7 @@ const GridItem = ({ icon, title, description, onClick, isActive, gradient, darkG
                 </div>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <h3 className={cn(
                 "text-lg leading-[1.25rem] font-semibold tracking-[-0.04em] text-balance",
