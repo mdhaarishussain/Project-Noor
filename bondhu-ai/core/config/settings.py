@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Environment mode
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 @dataclass
 class DatabaseConfig:
     """Database connection configuration."""
@@ -19,7 +23,8 @@ class DatabaseConfig:
     service_role_key: str = field(default_factory=lambda: os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""))
     
     def __post_init__(self):
-        if not self.url or not self.key:
+        # Require Supabase credentials only in production; allow empty for local dev
+        if IS_PRODUCTION and (not self.url or not self.key):
             raise ValueError("Supabase URL and KEY must be provided")
 
 @dataclass
@@ -47,7 +52,8 @@ class GeminiConfig:
     temperature: float = field(default_factory=lambda: float(os.getenv("GEMINI_TEMPERATURE", "0.7")))
     
     def __post_init__(self):
-        if not self.api_key:
+        # Require Gemini key only in production
+        if IS_PRODUCTION and not self.api_key:
             raise ValueError("Gemini API key must be provided")
 
 @dataclass
@@ -59,7 +65,8 @@ class SpotifyConfig:
     scope: str = field(default_factory=lambda: os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-library-read user-top-read user-read-playback-state"))
     
     def __post_init__(self):
-        if not self.client_id or not self.client_secret:
+        # Require Spotify credentials only in production
+        if IS_PRODUCTION and (not self.client_id or not self.client_secret):
             raise ValueError("Spotify Client ID and Secret must be provided")
 
 @dataclass
@@ -69,7 +76,8 @@ class YouTubeConfig:
     quota_limit: int = field(default_factory=lambda: int(os.getenv("YOUTUBE_QUOTA_LIMIT", "10000")))
     
     def __post_init__(self):
-        if not self.api_key:
+        # Require YouTube key only in production
+        if IS_PRODUCTION and not self.api_key:
             raise ValueError("YouTube API key must be provided")
 
 @dataclass
@@ -78,7 +86,8 @@ class SteamConfig:
     api_key: str = field(default_factory=lambda: os.getenv("STEAM_API_KEY", ""))
     
     def __post_init__(self):
-        if not self.api_key:
+        # Require Steam key only in production
+        if IS_PRODUCTION and not self.api_key:
             raise ValueError("Steam API key must be provided")
 
 @dataclass
