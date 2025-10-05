@@ -27,8 +27,6 @@ services:
       - PYTHONPATH=/app
       - ENVIRONMENT=development
       - LOG_LEVEL=info
-      - SUPABASE_URL=https://eilvtjkqmvmhkfzocrzs.supabase.co
-      - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpbHZ0amtxbXZtaGtmem9jcnpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg1MDAxMDYsImV4cCI6MjA3NDA3NjEwNn0.mzQ52ds8H3LBDPjv7cIVai04AriswI2UXZPSDa3ldz0
     env_file:
       - .env
     depends_on:
