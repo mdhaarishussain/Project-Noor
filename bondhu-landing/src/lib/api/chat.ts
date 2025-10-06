@@ -3,7 +3,20 @@
  * Handles communication with the FastAPI backend for chat functionality
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Resolve API base URL with a fallback that works both server- and client-side.
+// If NEXT_PUBLIC_API_URL is provided (recommended), use it. Otherwise, when
+// running in the browser derive the host from window.location and assume the
+// backend is exposed on port 8000 (the common docker-compose mapping). On the
+// server (build/SSG) fall back to localhost:8000.
+const API_BASE_URL = (() => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') {
+    // Derive origin from current host and assume API on port 8000.
+    const port = 8000;
+    return `${window.location.protocol}//${window.location.hostname}:${port}`;
+  }
+  return 'http://localhost:8000';
+})();
 
 export interface ChatMessage {
   role: 'user' | 'assistant';

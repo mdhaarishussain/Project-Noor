@@ -127,12 +127,14 @@ async def handle_spotify_callback(
     """
     try:
         if not user_id:
-            # Try to extract user_id from state parameter
-            # In a real implementation, state would encode the user_id
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User ID required for callback"
-            )
+            # Try to extract user_id from state parameter (we set it during /music/connect)
+            if state:
+                user_id = state
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User ID required for callback"
+                )
         
         # Create music agent and handle callback
         music_agent = MusicIntelligenceAgent(user_id=user_id)
@@ -193,6 +195,321 @@ async def disconnect_spotify(user_id: str) -> JSONResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to disconnect: {str(e)}"
+        )
+
+@agents_router.get("/music/genres")
+async def get_available_genres() -> JSONResponse:
+    """
+    Get list of available GenZ-friendly music genres.
+    
+    Returns:
+        List of genre names
+    """
+    try:
+        # Create temporary music agent to get genres
+        music_agent = MusicIntelligenceAgent(user_id="temp")
+        genres = music_agent.get_available_genres()
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "genres": genres,
+                "total_count": len(genres)
+            }
+        )
+        
+    except Exception as e:
+        logging.error(f"Error getting genres: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get genres: {str(e)}"
+        )
+
+@agents_router.get("/music/history/{user_id}")
+async def get_music_history_by_genre(
+    user_id: str,
+    spotify_token: str,
+    time_range: str = "medium_term"
+) -> JSONResponse:
+    """
+    Get user's Spotify listening history organized by GenZ genres.
+    
+    Args:
+        user_id: User ID
+        spotify_token: Spotify access token
+        time_range: "short_term", "medium_term", or "long_term"
+        
+    Returns:
+        Genre-organized listening history
+    """
+    try:
+        # Create music agent with token
+        music_agent = MusicIntelligenceAgent(user_id=user_id, spotify_token=spotify_token)
+        
+        # Fetch genre-based history
+        genre_history = await music_agent.fetch_genre_based_history(time_range=time_range)
+        
+        # Calculate statistics
+        total_tracks = sum(len(tracks) for tracks in genre_history.values())
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "user_id": user_id,
+                "genre_history": genre_history,
+                "total_tracks": total_tracks,
+                "total_genres": len(genre_history),
+                "time_range": time_range,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        
+    except Exception as e:
+        logging.error(f"Error getting music history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get music history: {str(e)}"
+        )
+
+@agents_router.post("/music/recommendations/{user_id}")
+async def get_music_recommendations(
+    user_id: str,
+    request_data: Dict[str, Any]
+) -> JSONResponse:
+    """
+    Get personalized music recommendations by genre.
+    
+    Args:
+        user_id: User ID
+        request_data: {
+            "spotify_token": str,
+            "personality_profile": Dict[str, float],
+            "genres": Optional[List[str]],
+            "songs_per_genre": int (default 3),
+            "use_history": bool (default True)
+        }
+        
+    Returns:
+        Genre-organized music recommendations with Spotify links
+    """
+    try:
+        spotify_token = request_data.get("spotify_token")
+        personality_profile = request_data.get("personality_profile", {})
+        genres = request_data.get("genres")
+        songs_per_genre = request_data.get("songs_per_genre", 3)
+        use_history = request_data.get("use_history", True)
+        refresh_salt = request_data.get("refresh_salt")
+        
+        # Convert personality profile to enum keys
+        from api.models.schemas import PersonalityTrait
+        profile = {}
+        for trait_name, score in personality_profile.items():
+            try:
+                trait_enum = PersonalityTrait(trait_name.lower())
+                profile[trait_enum] = float(score)
+            except ValueError:
+                logging.warning(f"Invalid personality trait: {trait_name}")
+        
+        # Create music agent (will use user token if provided, else app credentials)
+        music_agent = MusicIntelligenceAgent(user_id=user_id, spotify_token=spotify_token)
+
+        # If no token, first attempt real Spotify recommendations using app credentials
+        recommendations = await music_agent.get_recommendations_by_genre(
+            personality_profile=profile,
+            genres=genres,
+            songs_per_genre=songs_per_genre,
+            use_history=bool(spotify_token) and use_history,
+            refresh_salt=refresh_salt
+        )
+
+        # Fallback to persona-only placeholders if nothing returned
+        if not recommendations:
+            # If no token, try to fetch personality from DB if not provided
+            if not personality_profile:
+                try:
+                    from core.database.supabase_client import SupabaseClient
+                    supabase = SupabaseClient()
+                    pdata = await supabase.get_user_personality(user_id)
+                    if pdata and pdata.get('scores'):
+                        personality_profile = pdata['scores']
+                except Exception:
+                    pass
+
+            recommendations = await music_agent.get_persona_only_recommendations(
+                personality_profile=profile,
+                genres=genres,
+                songs_per_genre=songs_per_genre,
+                refresh_salt=refresh_salt
+            )
+        
+        # Format response with action buttons metadata
+        formatted_recommendations = {}
+        for genre, songs in recommendations.items():
+            formatted_recommendations[genre] = [
+                {
+                    **song,
+                    "actions": {
+                        "like": f"/api/v1/agents/music/feedback/{user_id}",
+                        "dislike": f"/api/v1/agents/music/feedback/{user_id}",
+                        "play": song.get("external_url", "#"),
+                    }
+                }
+                for song in songs
+            ]
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "user_id": user_id,
+                "recommendations": formatted_recommendations,
+                "total_genres": len(formatted_recommendations),
+                "songs_per_genre": songs_per_genre,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting music recommendations: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get recommendations: {str(e)}"
+        )
+
+@agents_router.post("/music/feedback/{user_id}")
+async def record_music_feedback(
+    user_id: str,
+    feedback_data: Dict[str, Any]
+) -> JSONResponse:
+    """
+    Record user feedback on music recommendations (like/dislike/play).
+    Feeds into RL system for personalized learning.
+    
+    Args:
+        user_id: User ID
+        feedback_data: {
+            "song_id": str,
+            "song_data": Dict[str, Any],
+            "feedback_type": str ("like", "dislike", "play", "skip", "save"),
+            "personality_profile": Dict[str, float],
+            "additional_data": Optional[Dict] (listen_duration, etc.)
+        }
+        
+    Returns:
+        Feedback processing confirmation
+    """
+    try:
+        song_data = feedback_data.get("song_data", {})
+        feedback_type = feedback_data.get("feedback_type")
+        personality_profile = feedback_data.get("personality_profile", {})
+        additional_data = feedback_data.get("additional_data")
+        spotify_token = feedback_data.get("spotify_token")
+        
+        if not feedback_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Feedback type required"
+            )
+        
+        if not song_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Song data required"
+            )
+        
+        # Convert personality profile to enum keys
+        from api.models.schemas import PersonalityTrait
+        profile = {}
+        for trait_name, score in personality_profile.items():
+            try:
+                trait_enum = PersonalityTrait(trait_name.lower())
+                profile[trait_enum] = float(score)
+            except ValueError:
+                pass
+        
+        # Create music agent
+        music_agent = MusicIntelligenceAgent(user_id=user_id, spotify_token=spotify_token)
+        
+        # Process feedback through RL system
+        success = await music_agent.process_user_feedback(
+            song_data=song_data,
+            personality_profile=profile,
+            feedback_type=feedback_type,
+            additional_data=additional_data
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to process feedback"
+            )
+        
+        # Get updated RL statistics
+        rl_stats = music_agent.get_rl_statistics()
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "message": "Feedback recorded successfully",
+                "user_id": user_id,
+                "feedback_type": feedback_type,
+                "song_name": song_data.get("name"),
+                "rl_stats": {
+                    "training_episodes": rl_stats.get("training_episodes"),
+                    "average_reward": rl_stats.get("average_reward")
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error recording music feedback: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to record feedback: {str(e)}"
+        )
+
+@agents_router.get("/music/insights/{user_id}")
+async def get_music_insights(
+    user_id: str,
+    spotify_token: str
+) -> JSONResponse:
+    """
+    Get music learning insights and genre performance statistics.
+    
+    Args:
+        user_id: User ID
+        spotify_token: Spotify access token
+        
+    Returns:
+        RL statistics and genre insights
+    """
+    try:
+        # Create music agent
+        music_agent = MusicIntelligenceAgent(user_id=user_id, spotify_token=spotify_token)
+        
+        # Get RL statistics and genre insights
+        rl_stats = music_agent.get_rl_statistics()
+        genre_insights = music_agent.get_genre_insights()
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "user_id": user_id,
+                "rl_statistics": rl_stats,
+                "genre_insights": genre_insights,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        
+    except Exception as e:
+        logging.error(f"Error getting music insights: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get insights: {str(e)}"
         )
 
 @agents_router.post("/video/data/{user_id}")

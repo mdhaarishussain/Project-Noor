@@ -157,3 +157,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Docker
+*.yml
+Dockerfile
