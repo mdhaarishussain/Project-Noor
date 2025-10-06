@@ -28,6 +28,7 @@ import { VideoPlayer } from "@/components/video/VideoPlayer"
 import { PersonalityRadarAdvanced } from "@/components/ui/personality-radar-advanced"
 import { aiLearningEngine } from "@/lib/ai-learning-engine"
 import { GlowingEffect } from "@/components/ui/glowing-effect"
+import MusicRecommendations from "@/components/music-recommendations"
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -151,11 +152,11 @@ export default function DashboardPage() {
         {/* Main Content */}
         <main className="container mx-auto px-4 py-4">
           {/* Compact Welcome Section */}
-          <DashboardWelcome 
-            userName={profile.full_name?.split(' ')[0] || 'Friend'} 
+          <DashboardWelcome
+            userName={profile.full_name?.split(' ')[0] || 'Friend'}
             streak={activityStats?.currentStreakDays || 0}
             wellnessScore={activityStats?.wellnessScore || 0}
-            compact={true} 
+            compact={true}
           />
 
           {/* Main Dashboard Layout - 50% Chat + 50% Explore More */}
@@ -230,34 +231,34 @@ function EntertainmentHub({ profile }: { profile: Profile }) {
               variant="ghost"
               onClick={() => setActiveSection('games')}
               className={`h-16 flex flex-col justify-center items-center space-y-1.5 relative overflow-hidden transition-all duration-500 group border-0 ${activeSection === 'games'
-                  ? 'bg-green-500/20 backdrop-blur-xl border border-green-400/30 shadow-lg shadow-green-500/20 dark:shadow-green-400/15'
-                  : 'bg-white/10 dark:bg-white/5 backdrop-blur-lg border border-white/20 dark:border-white/10 hover:bg-green-500/10 hover:border-green-400/20 hover:shadow-md hover:shadow-green-500/10'
+                ? 'bg-green-500/20 backdrop-blur-xl border border-green-400/30 shadow-lg shadow-green-500/20 dark:shadow-green-400/15'
+                : 'bg-white/10 dark:bg-white/5 backdrop-blur-lg border border-white/20 dark:border-white/10 hover:bg-green-500/10 hover:border-green-400/20 hover:shadow-md hover:shadow-green-500/10'
                 }`}
             >
               <GlowingEffect disabled={false} proximity={120} spread={35} blur={1.5} />
 
               {/* Liquid glass morphing background */}
               <div className={`absolute inset-0 transition-all duration-700 ease-out ${activeSection === 'games'
-                  ? 'bg-gradient-to-br from-green-400/30 via-emerald-500/20 to-green-600/30'
-                  : 'bg-gradient-to-br from-white/5 via-green-500/5 to-white/10 group-hover:from-green-400/10 group-hover:via-emerald-500/10 group-hover:to-green-600/15'
+                ? 'bg-gradient-to-br from-green-400/30 via-emerald-500/20 to-green-600/30'
+                : 'bg-gradient-to-br from-white/5 via-green-500/5 to-white/10 group-hover:from-green-400/10 group-hover:via-emerald-500/10 group-hover:to-green-600/15'
                 }`} />
 
               {/* Animated liquid blob */}
               <div className={`absolute w-32 h-32 -top-8 -left-8 rounded-full transition-all duration-1000 ease-in-out ${activeSection === 'games'
-                  ? 'bg-green-400/30 blur-xl animate-pulse'
-                  : 'bg-green-500/10 blur-2xl group-hover:bg-green-400/20 group-hover:scale-110'
+                ? 'bg-green-400/30 blur-xl animate-pulse'
+                : 'bg-green-500/10 blur-2xl group-hover:bg-green-400/20 group-hover:scale-110'
                 }`} />
 
               {/* Glass reflection effect */}
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent opacity-50" />
 
               <Gamepad2 className={`h-5 w-5 transition-all duration-300 group-hover:scale-110 relative z-10 ${activeSection === 'games'
-                  ? 'text-green-100 drop-shadow-sm filter brightness-110'
-                  : 'text-green-600 dark:text-green-400 group-hover:text-green-500 dark:group-hover:text-green-300'
+                ? 'text-green-100 drop-shadow-sm filter brightness-110'
+                : 'text-green-600 dark:text-green-400 group-hover:text-green-500 dark:group-hover:text-green-300'
                 }`} />
               <span className={`text-xs font-semibold transition-all duration-300 relative z-10 ${activeSection === 'games'
-                  ? 'text-green-50 drop-shadow-sm filter brightness-110'
-                  : 'text-green-700 dark:text-green-300 group-hover:text-green-600 dark:group-hover:text-green-200'
+                ? 'text-green-50 drop-shadow-sm filter brightness-110'
+                : 'text-green-700 dark:text-green-300 group-hover:text-green-600 dark:group-hover:text-green-200'
                 }`}>Games</span>
             </Button>
 
@@ -265,34 +266,34 @@ function EntertainmentHub({ profile }: { profile: Profile }) {
               variant="ghost"
               onClick={() => setActiveSection('videos')}
               className={`h-16 flex flex-col justify-center items-center space-y-1.5 relative overflow-hidden transition-all duration-500 group border-0 ${activeSection === 'videos'
-                  ? 'bg-green-500/20 backdrop-blur-xl border border-green-400/30 shadow-lg shadow-green-500/20 dark:shadow-green-400/15'
-                  : 'bg-white/10 dark:bg-white/5 backdrop-blur-lg border border-white/20 dark:border-white/10 hover:bg-green-500/10 hover:border-green-400/20 hover:shadow-md hover:shadow-green-500/10'
+                ? 'bg-green-500/20 backdrop-blur-xl border border-green-400/30 shadow-lg shadow-green-500/20 dark:shadow-green-400/15'
+                : 'bg-white/10 dark:bg-white/5 backdrop-blur-lg border border-white/20 dark:border-white/10 hover:bg-green-500/10 hover:border-green-400/20 hover:shadow-md hover:shadow-green-500/10'
                 }`}
             >
               <GlowingEffect disabled={false} proximity={120} spread={35} blur={1.5} />
 
               {/* Liquid glass morphing background */}
               <div className={`absolute inset-0 transition-all duration-700 ease-out ${activeSection === 'videos'
-                  ? 'bg-gradient-to-br from-green-400/30 via-emerald-500/20 to-green-600/30'
-                  : 'bg-gradient-to-br from-white/5 via-green-500/5 to-white/10 group-hover:from-green-400/10 group-hover:via-emerald-500/10 group-hover:to-green-600/15'
+                ? 'bg-gradient-to-br from-green-400/30 via-emerald-500/20 to-green-600/30'
+                : 'bg-gradient-to-br from-white/5 via-green-500/5 to-white/10 group-hover:from-green-400/10 group-hover:via-emerald-500/10 group-hover:to-green-600/15'
                 }`} />
 
               {/* Animated liquid blob */}
               <div className={`absolute w-32 h-32 -top-8 -right-8 rounded-full transition-all duration-1000 ease-in-out ${activeSection === 'videos'
-                  ? 'bg-emerald-400/30 blur-xl animate-pulse'
-                  : 'bg-green-500/10 blur-2xl group-hover:bg-emerald-400/20 group-hover:scale-110'
+                ? 'bg-emerald-400/30 blur-xl animate-pulse'
+                : 'bg-green-500/10 blur-2xl group-hover:bg-emerald-400/20 group-hover:scale-110'
                 }`} />
 
               {/* Glass reflection effect */}
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent opacity-50" />
 
               <Camera className={`h-5 w-5 transition-all duration-300 group-hover:scale-110 relative z-10 ${activeSection === 'videos'
-                  ? 'text-green-100 drop-shadow-sm filter brightness-110'
-                  : 'text-green-600 dark:text-green-400 group-hover:text-green-500 dark:group-hover:text-green-300'
+                ? 'text-green-100 drop-shadow-sm filter brightness-110'
+                : 'text-green-600 dark:text-green-400 group-hover:text-green-500 dark:group-hover:text-green-300'
                 }`} />
               <span className={`text-xs font-semibold transition-all duration-300 relative z-10 ${activeSection === 'videos'
-                  ? 'text-green-50 drop-shadow-sm filter brightness-110'
-                  : 'text-green-700 dark:text-green-300 group-hover:text-green-600 dark:group-hover:text-green-200'
+                ? 'text-green-50 drop-shadow-sm filter brightness-110'
+                : 'text-green-700 dark:text-green-300 group-hover:text-green-600 dark:group-hover:text-green-200'
                 }`}>Videos</span>
             </Button>
 
@@ -300,34 +301,34 @@ function EntertainmentHub({ profile }: { profile: Profile }) {
               variant="ghost"
               onClick={() => setActiveSection('music')}
               className={`h-16 flex flex-col justify-center items-center space-y-1.5 relative overflow-hidden transition-all duration-500 group border-0 ${activeSection === 'music'
-                  ? 'bg-green-500/20 backdrop-blur-xl border border-green-400/30 shadow-lg shadow-green-500/20 dark:shadow-green-400/15'
-                  : 'bg-white/10 dark:bg-white/5 backdrop-blur-lg border border-white/20 dark:border-white/10 hover:bg-green-500/10 hover:border-green-400/20 hover:shadow-md hover:shadow-green-500/10'
+                ? 'bg-green-500/20 backdrop-blur-xl border border-green-400/30 shadow-lg shadow-green-500/20 dark:shadow-green-400/15'
+                : 'bg-white/10 dark:bg-white/5 backdrop-blur-lg border border-white/20 dark:border-white/10 hover:bg-green-500/10 hover:border-green-400/20 hover:shadow-md hover:shadow-green-500/10'
                 }`}
             >
               <GlowingEffect disabled={false} proximity={120} spread={35} blur={1.5} />
 
               {/* Liquid glass morphing background */}
               <div className={`absolute inset-0 transition-all duration-700 ease-out ${activeSection === 'music'
-                  ? 'bg-gradient-to-br from-green-400/30 via-emerald-500/20 to-green-600/30'
-                  : 'bg-gradient-to-br from-white/5 via-green-500/5 to-white/10 group-hover:from-green-400/10 group-hover:via-emerald-500/10 group-hover:to-green-600/15'
+                ? 'bg-gradient-to-br from-green-400/30 via-emerald-500/20 to-green-600/30'
+                : 'bg-gradient-to-br from-white/5 via-green-500/5 to-white/10 group-hover:from-green-400/10 group-hover:via-emerald-500/10 group-hover:to-green-600/15'
                 }`} />
 
               {/* Animated liquid blob */}
               <div className={`absolute w-32 h-32 -bottom-8 -left-8 rounded-full transition-all duration-1000 ease-in-out ${activeSection === 'music'
-                  ? 'bg-teal-400/30 blur-xl animate-pulse'
-                  : 'bg-green-500/10 blur-2xl group-hover:bg-teal-400/20 group-hover:scale-110'
+                ? 'bg-teal-400/30 blur-xl animate-pulse'
+                : 'bg-green-500/10 blur-2xl group-hover:bg-teal-400/20 group-hover:scale-110'
                 }`} />
 
               {/* Glass reflection effect */}
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent opacity-50" />
 
               <Headphones className={`h-5 w-5 transition-all duration-300 group-hover:scale-110 relative z-10 ${activeSection === 'music'
-                  ? 'text-green-100 drop-shadow-sm filter brightness-110'
-                  : 'text-green-600 dark:text-green-400 group-hover:text-green-500 dark:group-hover:text-green-300'
+                ? 'text-green-100 drop-shadow-sm filter brightness-110'
+                : 'text-green-600 dark:text-green-400 group-hover:text-green-500 dark:group-hover:text-green-300'
                 }`} />
               <span className={`text-xs font-semibold transition-all duration-300 relative z-10 ${activeSection === 'music'
-                  ? 'text-green-50 drop-shadow-sm filter brightness-110'
-                  : 'text-green-700 dark:text-green-300 group-hover:text-green-600 dark:group-hover:text-green-200'
+                ? 'text-green-50 drop-shadow-sm filter brightness-110'
+                : 'text-green-700 dark:text-green-300 group-hover:text-green-600 dark:group-hover:text-green-200'
                 }`}>Music</span>
             </Button>
           </div>
@@ -335,7 +336,18 @@ function EntertainmentHub({ profile }: { profile: Profile }) {
           {/* Dynamic Content Area */}
           {activeSection === 'games' && <GamingSection profile={profile} />}
           {activeSection === 'videos' && <VideoSection profile={profile} />}
-          {activeSection === 'music' && <MusicSection profile={profile} />}
+          {activeSection === 'music' && (
+            <MusicRecommendations
+              userId={profile.id}
+              personalityProfile={{
+                openness: typeof profile.personality_data?.openness === 'number' ? profile.personality_data.openness : 0.5,
+                extraversion: typeof profile.personality_data?.extraversion === 'number' ? profile.personality_data.extraversion : 0.5,
+                conscientiousness: typeof profile.personality_data?.conscientiousness === 'number' ? profile.personality_data.conscientiousness : 0.5,
+                agreeableness: typeof profile.personality_data?.agreeableness === 'number' ? profile.personality_data.agreeableness : 0.5,
+                neuroticism: typeof profile.personality_data?.neuroticism === 'number' ? profile.personality_data.neuroticism : 0.5
+              }}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
@@ -682,425 +694,6 @@ function VideoSection({ profile }: { profile: Profile }) {
   )
 }
 
-// Music Section Component
-function MusicSection({ profile }: { profile: Profile }) {
-  const [selectedMood, setSelectedMood] = useState('')
-  const [currentTrack, setCurrentTrack] = useState<any | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [listeningHistory, setListeningHistory] = useState<any[]>([])
-  const [volume, setVolume] = useState(0.7)
-
-  const moods = [
-    {
-      name: 'Focus',
-      emoji: '🎯',
-      color: 'bg-blue-100',
-      description: 'Deep work and concentration',
-      gradient: 'from-blue-500 to-cyan-500',
-      hoverGradient: 'from-blue-600 to-cyan-600'
-    },
-    {
-      name: 'Relax',
-      emoji: '🌊',
-      color: 'bg-green-100',
-      description: 'Calm and peaceful',
-      gradient: 'from-green-500 to-emerald-500',
-      hoverGradient: 'from-green-600 to-emerald-600'
-    },
-    {
-      name: 'Energy',
-      emoji: '⚡',
-      color: 'bg-orange-100',
-      description: 'Upbeat and motivating',
-      gradient: 'from-orange-500 to-red-500',
-      hoverGradient: 'from-orange-600 to-red-600'
-    },
-    {
-      name: 'Creative',
-      emoji: '🎨',
-      color: 'bg-purple-100',
-      description: 'Inspiration and flow',
-      gradient: 'from-purple-500 to-pink-500',
-      hoverGradient: 'from-purple-600 to-pink-600'
-    },
-    {
-      name: 'Social',
-      emoji: '🎉',
-      color: 'bg-pink-100',
-      description: 'Social and uplifting',
-      gradient: 'from-pink-500 to-rose-500',
-      hoverGradient: 'from-pink-600 to-rose-600'
-    },
-    {
-      name: 'Sleep',
-      emoji: '😴',
-      color: 'bg-indigo-100',
-      description: 'Wind down and rest',
-      gradient: 'from-indigo-500 to-purple-500',
-      hoverGradient: 'from-indigo-600 to-purple-600'
-    }
-  ]
-
-  const playlists = [
-    {
-      id: 1,
-      name: 'Deep Focus Flow',
-      mood: 'Focus',
-      tracks: 24,
-      duration: '1h 45m',
-      cover: '🎵',
-      genre: 'Ambient',
-      insights: ['Concentration patterns', 'Productivity preferences', 'Attention sustainability'],
-      tracks_list: [
-        { id: 1, title: 'Concentrated Mind', artist: 'Focus Collective', duration: 240 },
-        { id: 2, title: 'Deep Work Mode', artist: 'Productivity Sounds', duration: 300 },
-        { id: 3, title: 'Mental Clarity', artist: 'Study Beats', duration: 280 }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Calm Waves',
-      mood: 'Relax',
-      tracks: 18,
-      duration: '1h 12m',
-      cover: '🌙',
-      genre: 'Nature Sounds',
-      insights: ['Relaxation style', 'Stress relief patterns', 'Evening preferences'],
-      tracks_list: [
-        { id: 4, title: 'Ocean Breeze', artist: 'Nature Collective', duration: 360 },
-        { id: 5, title: 'Peaceful Mind', artist: 'Relaxation Masters', duration: 420 },
-        { id: 6, title: 'Gentle Rain', artist: 'Calm Sounds', duration: 300 }
-      ]
-    },
-    {
-      id: 3,
-      name: 'Creative Spark',
-      mood: 'Creative',
-      tracks: 20,
-      duration: '1h 30m',
-      cover: '✨',
-      genre: 'Instrumental',
-      insights: ['Creative thinking', 'Artistic inspiration', 'Flow state enhancement'],
-      tracks_list: [
-        { id: 7, title: 'Artistic Vision', artist: 'Creative Minds', duration: 270 },
-        { id: 8, title: 'Innovation Flow', artist: 'Inspiration Hub', duration: 315 },
-        { id: 9, title: 'Creative Energy', artist: 'Art Sounds', duration: 290 }
-      ]
-    },
-    {
-      id: 4,
-      name: 'Energy Boost',
-      mood: 'Energy',
-      tracks: 15,
-      duration: '1h 0m',
-      cover: '🔥',
-      genre: 'Upbeat',
-      insights: ['Energy levels', 'Motivation patterns', 'Activity preferences'],
-      tracks_list: [
-        { id: 10, title: 'Power Up', artist: 'Energy Collective', duration: 210 },
-        { id: 11, title: 'High Vibes', artist: 'Motivation Music', duration: 240 },
-        { id: 12, title: 'Peak Performance', artist: 'Energy Sounds', duration: 225 }
-      ]
-    }
-  ]
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const playTrack = (track: any, playlist: any) => {
-    setCurrentTrack({ ...track, playlist: playlist.name, mood: playlist.mood })
-    setIsPlaying(true)
-    setCurrentTime(0)
-
-    // Track listening analytics
-    const listeningData = {
-      trackId: track.id,
-      userId: 'current_user',
-      sessionId: Math.random().toString(36).substr(2, 9),
-      playTime: 0,
-      totalDuration: track.duration,
-      skipTime: undefined,
-      repeatCount: 0,
-      volume: volume,
-      mood_context: playlist.mood,
-      activity_context: 'entertainment',
-      social_context: 'alone' as const
-    }
-
-    // Send to AI learning engine
-    aiLearningEngine.addMusicData(listeningData)
-
-    setListeningHistory(prev => [...prev, {
-      trackId: track.id,
-      sessionId: listeningData.sessionId,
-      startTime: new Date(),
-      mood: playlist.mood,
-      playlistId: playlist.id
-    }])
-  }
-
-  const togglePlayPause = () => {
-    setIsPlaying(!isPlaying)
-  }
-
-  // Simulate track progress
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (isPlaying && currentTrack) {
-      interval = setInterval(() => {
-        setCurrentTime(prev => {
-          if (prev >= currentTrack.duration) {
-            setIsPlaying(false)
-            return 0
-          }
-          return prev + 1
-        })
-      }, 1000)
-    }
-    return () => clearInterval(interval)
-  }, [isPlaying, currentTrack])
-
-  return (
-    <div className="space-y-6">
-      {/* Mood Selection */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        {moods.map((mood) => (
-          <div
-            key={mood.name}
-            onClick={() => setSelectedMood(mood.name)}
-            className={`
-              relative overflow-hidden rounded-xl p-6 cursor-pointer transition-all duration-300 ease-in-out transform hover:scale-[1.02] group
-              ${selectedMood === mood.name
-                ? `bg-gradient-to-br ${mood.gradient} text-white shadow-md dark:shadow-lg shadow-${mood.gradient.split('-')[1]}-500/20 dark:shadow-${mood.gradient.split('-')[1]}-500/10`
-                : 'bg-white dark:bg-card hover:bg-gray-50/50 dark:hover:bg-card/80 border border-gray-200/60 dark:border-border/40 hover:border-gray-300/80 dark:hover:border-border/60'
-              }
-            `}
-          >
-            <GlowingEffect disabled={false} proximity={120} spread={35} blur={1.5} />
-            {/* Background gradient overlay for selected state */}
-            {selectedMood === mood.name && (
-              <div className={`absolute inset-0 bg-gradient-to-br ${mood.hoverGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-            )}
-
-            {/* Content */}
-            <div className="relative z-10 flex flex-col items-center text-center space-y-2">
-              <div className={`
-                text-3xl mb-1 transition-transform duration-300 group-hover:scale-105
-                ${selectedMood === mood.name ? 'drop-shadow-sm' : ''}
-              `}>
-                {mood.emoji}
-              </div>
-              <h3 className={`
-                font-semibold text-sm 
-                ${selectedMood === mood.name
-                  ? 'text-white'
-                  : 'text-gray-900 dark:text-gray-100'
-                }
-              `}>
-                {mood.name}
-              </h3>
-              <p className={`
-                text-xs leading-tight
-                ${selectedMood === mood.name
-                  ? 'text-white/80'
-                  : 'text-gray-500 dark:text-gray-400'
-                }
-              `}>
-                {mood.description}
-              </p>
-            </div>
-
-            {/* Shine effect for unselected buttons */}
-            {selectedMood !== mood.name && (
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                <div className={`absolute inset-0 bg-gradient-to-r ${mood.gradient} opacity-5 dark:opacity-10`} />
-                <div className="absolute -inset-x-full h-full bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent transform -skew-x-12 animate-shine" />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Current Player */}
-      {currentTrack && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-2xl">
-                🎵
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium">{currentTrack.title}</h4>
-                <p className="text-sm text-muted-foreground">{currentTrack.artist}</p>
-                <p className="text-xs text-muted-foreground">
-                  {currentTrack.playlist} • {currentTrack.mood} Mood
-                </p>
-              </div>
-              <div className="flex items-center space-x-4">
-                <Button size="sm" onClick={togglePlayPause}>
-                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-                <div className="flex items-center space-x-2">
-                  <Volume2 className="h-4 w-4" />
-                  <div className="w-16">
-                    <Slider
-                      value={[volume]}
-                      max={1}
-                      step={0.1}
-                      onValueChange={([val]: number[]) => setVolume(val)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(currentTrack.duration)}</span>
-              </div>
-              <Slider
-                value={[currentTime]}
-                max={currentTrack.duration}
-                step={1}
-                onValueChange={([time]: number[]) => setCurrentTime(time)}
-                className="w-full"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Playlists */}
-      {selectedMood && (
-        <div className="space-y-4">
-          <h3 className="font-semibold text-lg">
-            {selectedMood} Playlists
-          </h3>
-          {playlists.filter(p => p.mood === selectedMood).map((playlist) => (
-            <Card key={playlist.id} className="overflow-hidden relative">
-              <GlowingEffect disabled={false} proximity={150} spread={40} blur={2} />
-              <CardHeader className="pb-3 relative z-10">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center text-3xl">
-                      {playlist.cover}
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{playlist.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {playlist.tracks} tracks • {playlist.duration} • {playlist.genre}
-                      </p>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {playlist.insights.map((insight, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {insight}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <Button onClick={() => playTrack(playlist.tracks_list[0], playlist)}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Play All
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0 relative z-10">
-                <div className="space-y-2">
-                  {playlist.tracks_list.slice(0, 3).map((track, index) => (
-                    <div
-                      key={track.id}
-                      className="flex items-center justify-between p-2 hover:bg-gray-50/50 dark:hover:bg-card/60 rounded cursor-pointer transition-colors duration-200"
-                      onClick={() => playTrack(track, playlist)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm text-muted-foreground w-6">{index + 1}</span>
-                        <div>
-                          <p className="text-sm font-medium">{track.title}</p>
-                          <p className="text-xs text-muted-foreground">{track.artist}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(track.duration)}
-                        </span>
-                        <Button size="sm" variant="ghost">
-                          <Play className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {playlist.tracks_list.length > 3 && (
-                    <p className="text-sm text-muted-foreground text-center pt-2">
-                      +{playlist.tracks_list.length - 3} more tracks
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* No mood selected */}
-      {!selectedMood && (
-        <div className="text-center py-8">
-          <h3 className="text-lg font-medium mb-2">Choose Your Mood</h3>
-          <p className="text-muted-foreground">
-            Select a mood above to discover personalized playlists that match your current state of mind.
-          </p>
-        </div>
-      )}
-
-      {/* Listening Analytics */}
-      {listeningHistory.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Recent Listening</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {listeningHistory.slice(-3).map((history, index) => {
-                const track = playlists
-                  .flatMap(p => p.tracks_list)
-                  .find(t => t.id === history.trackId)
-                return (
-                  <div key={index} className="p-3 bg-gray-50/50 dark:bg-card/40 rounded-lg border border-gray-200/40 dark:border-border/20">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium">{track?.title}</span>
-                      <Badge variant="secondary">{history.mood} Mood</Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                      <span>Artist: {track?.artist}</span>
-                      <span>Duration: {track ? formatTime(track.duration) : 'N/A'}</span>
-                      <span>Started: {new Date(history.startTime).toLocaleTimeString()}</span>
-                      <span>Playlist ID: {history.playlistId}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Learning Insights */}
-      <div className="text-xs text-muted-foreground space-y-1 p-3 bg-gray-50/50 dark:bg-card/40 rounded-lg border border-gray-200/40 dark:border-border/20">
-        <p className="font-medium">Music Learning Insights:</p>
-        <p>• Mood-based listening preferences and patterns</p>
-        <p>• Genre exploration and musical taste development</p>
-        <p>• Emotional regulation through music selection</p>
-        <p>• Focus and productivity correlation with specific sounds</p>
-        {selectedMood && <p>• Current preference: {selectedMood} mood exploration</p>}
-      </div>
-    </div>
-  )
-}
-
 // Profile Dashboard Component
 function ProfileDashboard({ profile }: { profile: Profile }) {
   const [aiInsights, setAiInsights] = useState<any>(null)
@@ -1402,7 +995,7 @@ function ProfileDashboard({ profile }: { profile: Profile }) {
                       <span className="text-sm font-medium capitalize">{trend.trait}</span>
                       <div className="flex items-center space-x-2">
                         <span className={`text-sm ${trend.trend === 'increasing' ? 'text-green-600' :
-                            trend.trend === 'decreasing' ? 'text-red-600' : 'text-gray-600'
+                          trend.trend === 'decreasing' ? 'text-red-600' : 'text-gray-600'
                           }`}>
                           {trend.trend === 'increasing' ? '↗️' : trend.trend === 'decreasing' ? '↘️' : '➡️'}
                           {trend.trend}
