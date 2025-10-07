@@ -2,7 +2,7 @@
 
 <div align="center">
   
-![Bondhu Logo](https://ik.imagekit.io/nqxbbkkms/Dark%20mode%20Logo.svg?updatedAt=1758793540526)
+![Bondhu Logo]([https://ik.imagekit.io/nqxbbkkms/Dark%20mode%20Logo.svg?updatedAt=1758793540526](https://media.licdn.com/dms/image/v2/D4D0BAQFDT6_nKtYSMg/company-logo_100_100/B4DZl84DFfH4AQ-/0/1758736693212?e=1762992000&v=beta&t=cxCY-iuSJ0iDZIpsfDurvxE-BAzt9qa11Ace2cxseFE))
 
 **An AI companion that adapts to your personality, grows with your journey, and becomes the friend you've always needed.**
 
