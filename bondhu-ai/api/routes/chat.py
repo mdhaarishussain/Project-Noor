@@ -20,6 +20,8 @@ from core.config import get_config
 from core.database.personality_service import get_personality_service
 from core.database.memory_service import get_memory_service
 from core.memory_extractor import MemoryExtractor
+from core.memory.memory_retriever import get_memory_retriever
+from core.memory.conversation_memory import get_conversation_memory_manager
 from api.models.schemas import APIResponse
 
 logger = logging.getLogger("bondhu.api.chat")
@@ -131,6 +133,9 @@ async def send_chat_message(request: ChatRequest):
         personality_service = get_personality_service()
         memory_service = get_memory_service()
         memory_extractor = MemoryExtractor()
+        
+        # NEW: Initialize memory retriever for conversational memory
+        memory_retriever = get_memory_retriever()
 
         # --- Memory Extraction ---
         extracted_memories = memory_extractor.extract_memories(request.message)
@@ -150,17 +155,23 @@ async def send_chat_message(request: ChatRequest):
             timestamp=datetime.now()
         )
         
-        # --- Memory Retrieval ---
-        # Generate comprehensive session context with important memories  
-        session_memory_context = memory_service.generate_session_context(request.user_id)
-        
+        # --- ENHANCED Memory Retrieval with Conversational Context ---
         # Get user's personality context for LLM
         personality_context = await personality_service.get_llm_system_prompt(request.user_id)
         
-        # Combine personality context with session memories
+        # NEW: Get comprehensive context including past conversations
+        # This enables the LLM to reference previous discussions
+        comprehensive_context = memory_retriever.retrieve_relevant_context(
+            user_id=request.user_id,
+            current_message=request.message,
+            max_items=5
+        )
+        
+        # Combine personality context with comprehensive memory context
         enriched_personality_context = personality_context
-        if session_memory_context:
-            enriched_personality_context = f"{personality_context}\n\n{session_memory_context}"
+        if comprehensive_context:
+            enriched_personality_context = f"{personality_context}\n\n{comprehensive_context}"
+            logger.info(f"Added conversational memory context for user {request.user_id}")
 
         # Get recent conversation history (last 5 messages)
         conversation_history = await _get_conversation_history(request.user_id, session_id)
@@ -192,6 +203,13 @@ async def send_chat_message(request: ChatRequest):
             
             # Invalidate cache after storing new message
             invalidate_user_chat_cache(request.user_id)
+            
+            # --- AUTOMATIC CONVERSATION SUMMARIZATION ---
+            # Trigger summarization after every 5 messages in a session
+            try:
+                asyncio.create_task(_auto_summarize_if_needed(request.user_id, session_id))
+            except Exception as sum_err:
+                logger.warning(f"Failed to trigger auto-summarization: {sum_err}")
             
         except Exception as e:
             logger.warning(f"Failed to store chat message: {e}")
@@ -366,6 +384,49 @@ async def initialize_chat_session(user_id: str) -> APIResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to clear chat history: {str(e)}"
+        )
+
+
+@router.post("/session/end", response_model=APIResponse)
+async def end_chat_session(user_id: str, session_id: str) -> APIResponse:
+    """
+    End a chat session and trigger summarization.
+    
+    This should be called when the user closes the chat or navigates away.
+    It will automatically summarize the conversation for future reference.
+    
+    Args:
+        user_id: User's ID
+        session_id: Session ID to end and summarize
+        
+    Returns:
+        Success response
+    """
+    try:
+        from core.tasks.memory_tasks import summarize_and_store_conversation
+        
+        logger.info(f"Ending session {session_id} for user {user_id}")
+        
+        # Trigger summarization
+        success = await summarize_and_store_conversation(user_id, session_id)
+        
+        if success:
+            return APIResponse(
+                success=True,
+                message=f"Session ended and conversation summarized successfully"
+            )
+        else:
+            return APIResponse(
+                success=True,
+                message="Session ended (no summarization needed - insufficient messages)"
+            )
+        
+    except Exception as e:
+        logger.error(f"Error ending chat session: {e}")
+        # Don't fail the request even if summarization fails
+        return APIResponse(
+            success=True,
+            message="Session ended (summarization failed but session was closed)"
         )
 
 
@@ -683,3 +744,50 @@ def _extract_conversation_context(
         keywords = ["mental wellness", "personal growth"]
     
     return keywords[:5]  # Limit to 5 keywords
+
+
+async def _auto_summarize_if_needed(user_id: str, session_id: str) -> None:
+    """
+    Automatically summarize conversation if certain conditions are met.
+    
+    Triggers summarization after every 5 messages in a session to maintain
+    memory continuity without overwhelming the system.
+    
+    Args:
+        user_id: User's ID
+        session_id: Session ID to check and potentially summarize
+    """
+    try:
+        from core.tasks.memory_tasks import summarize_and_store_conversation
+        
+        # Get message count for this session
+        supabase = get_supabase_client()
+        response = (
+            supabase.supabase.table("chat_messages")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .eq("session_id", session_id)
+            .execute()
+        )
+        
+        message_count = response.count
+        
+        # Summarize after every 5 messages (10 including AI responses)
+        # This means: 5 user messages + 5 AI responses = 10 total
+        if message_count and message_count >= 10 and message_count % 10 == 0:
+            logger.info(
+                f"Auto-summarization triggered for session {session_id} "
+                f"({message_count} messages)"
+            )
+            
+            # Run summarization in background
+            success = await summarize_and_store_conversation(user_id, session_id)
+            
+            if success:
+                logger.info(f"Auto-summarization completed for session {session_id}")
+            else:
+                logger.warning(f"Auto-summarization failed for session {session_id}")
+                
+    except Exception as e:
+        logger.error(f"Error in auto-summarization: {e}")
+        # Don't raise - this is a background task
