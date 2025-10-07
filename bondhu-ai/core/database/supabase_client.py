@@ -18,9 +18,18 @@ class SupabaseClient:
     
     def __init__(self):
         config = get_config()
+        # Prefer the service role key for backend/server operations when available.
+        # This allows server-side RPCs/functions to run with elevated privileges
+        # (e.g. perform writes that would otherwise be blocked by RLS for anon roles).
+        key_to_use = config.database.service_role_key or config.database.key
+        if config.database.service_role_key:
+            logger.info("Using Supabase service role key for backend DB client")
+        else:
+            logger.warning("Supabase service role key not found; falling back to provided DB key. RLS may block some operations.")
+
         self.supabase: Client = create_client(
             config.database.url,
-            config.database.key
+            key_to_use
         )
     
     async def close(self):

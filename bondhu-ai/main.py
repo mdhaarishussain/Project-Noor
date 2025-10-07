@@ -19,6 +19,7 @@ from api.routes.chat import router as chat_router
 from api.routes.entertainment import router as entertainment_router
 from api.routes.video_recommendations import router as video_router
 from api.routes.memory import router as memory_router
+from api.routes.stats import router as stats_router
 from core.database.supabase_client import cleanup_database
 
 # Configure logging
@@ -102,7 +103,8 @@ app.include_router(personality_context_router)
 app.include_router(chat_router)
 app.include_router(entertainment_router)
 app.include_router(video_router)
-app.include_router(memory_router)  # NEW: Memory management endpoints
+app.include_router(memory_router)  # Memory management endpoints
+app.include_router(stats_router)   # NEW: User activity stats and dashboard
 
 @app.get("/")
 async def root() -> Dict[str, str]:
