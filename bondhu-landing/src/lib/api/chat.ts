@@ -28,6 +28,7 @@ export interface ChatMessage {
 export interface ChatRequest {
   user_id: string;
   message: string;
+  session_id?: string; // Optional session ID for conversation continuity
 }
 
 export interface ChatResponse {
@@ -52,13 +53,20 @@ export interface ChatHistoryResponse {
 }
 
 /**
+ * Generate a new session ID for a chat conversation
+ */
+export function generateSessionId(): string {
+  return crypto.randomUUID();
+}
+
+/**
  * Chat API service
  */
 export const chatApi = {
   /**
    * Send a chat message and get AI response
    */
-  sendMessage: async (userId: string, message: string): Promise<ChatResponse> => {
+  sendMessage: async (userId: string, message: string, sessionId?: string): Promise<ChatResponse> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/chat/send`, {
         method: 'POST',
@@ -68,6 +76,7 @@ export const chatApi = {
         body: JSON.stringify({
           user_id: userId,
           message: message,
+          session_id: sessionId, // Include session_id for conversation continuity
         } as ChatRequest),
       });
 

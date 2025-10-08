@@ -207,9 +207,12 @@ async def send_chat_message(request: ChatRequest):
             # --- AUTOMATIC CONVERSATION SUMMARIZATION ---
             # Trigger summarization after every 5 messages in a session
             try:
-                asyncio.create_task(_auto_summarize_if_needed(request.user_id, session_id))
+                logger.info(f"🔄 Creating auto-summarization task for session {session_id}")
+                task = asyncio.create_task(_auto_summarize_if_needed(request.user_id, session_id))
+                # Add callback to log any exceptions
+                task.add_done_callback(lambda t: logger.error(f"❌ Auto-summarization task error: {t.exception()}") if t.exception() else None)
             except Exception as sum_err:
-                logger.warning(f"Failed to trigger auto-summarization: {sum_err}")
+                logger.warning(f"⚠️ Failed to trigger auto-summarization: {sum_err}")
             
         except Exception as e:
             logger.warning(f"Failed to store chat message: {e}")
@@ -758,6 +761,7 @@ async def _auto_summarize_if_needed(user_id: str, session_id: str) -> None:
         session_id: Session ID to check and potentially summarize
     """
     try:
+        logger.info(f"📊 Checking if auto-summarization needed for session {session_id}")
         from core.tasks.memory_tasks import summarize_and_store_conversation
         
         # Get message count for this session
@@ -771,23 +775,29 @@ async def _auto_summarize_if_needed(user_id: str, session_id: str) -> None:
         )
         
         message_count = response.count
+        logger.info(f"📝 Session {session_id} has {message_count} messages")
         
         # Summarize after every 5 messages (10 including AI responses)
         # This means: 5 user messages + 5 AI responses = 10 total
         if message_count and message_count >= 10 and message_count % 10 == 0:
             logger.info(
-                f"Auto-summarization triggered for session {session_id} "
-                f"({message_count} messages)"
+                f"🎯 Auto-summarization TRIGGERED for session {session_id} "
+                f"({message_count} messages) - Starting summarization..."
             )
             
             # Run summarization in background
             success = await summarize_and_store_conversation(user_id, session_id)
             
             if success:
-                logger.info(f"Auto-summarization completed for session {session_id}")
+                logger.info(f"✅ Auto-summarization COMPLETED for session {session_id}")
             else:
-                logger.warning(f"Auto-summarization failed for session {session_id}")
+                logger.warning(f"⚠️ Auto-summarization FAILED for session {session_id}")
+        else:
+            logger.info(
+                f"⏭️  Session {session_id}: Not triggering (count={message_count}, "
+                f"need multiple of 10, >= 10)"
+            )
                 
     except Exception as e:
-        logger.error(f"Error in auto-summarization: {e}")
+        logger.error(f"❌ ERROR in auto-summarization for session {session_id}: {e}", exc_info=True)
         # Don't raise - this is a background task

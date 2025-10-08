@@ -11,7 +11,7 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { BondhuAvatar } from "@/components/ui/bondhu-avatar";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types/auth";
-import { chatApi } from "@/lib/api/chat";
+import { chatApi, generateSessionId } from "@/lib/api/chat";
 import { createClient } from "@/lib/supabase/client";
 
 interface Message {
@@ -41,6 +41,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
   const [hasPersonalityContext, setHasPersonalityContext] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [sessionId, setSessionId] = useState<string>(() => generateSessionId()); // Generate session ID once
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -138,8 +139,8 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
     setError(null);
 
     try {
-      // Call real API
-      const response = await chatApi.sendMessage(userId, newMessage);
+      // Call real API with session ID for conversation continuity
+      const response = await chatApi.sendMessage(userId, newMessage, sessionId);
       
       const aiMessage: Message = {
         id: Date.now() + 1,
