@@ -4,12 +4,16 @@ Handles environment variables, API keys, and agent-specific settings.
 """
 
 import os
+from pathlib import Path
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (explicitly from repo root .env so local runs pick it up
+# regardless of current working directory)
+_repo_root = Path(__file__).resolve().parents[2]
+_dotenv_path = _repo_root / ".env"
+load_dotenv(dotenv_path=str(_dotenv_path))
 
 # Environment mode
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
@@ -62,7 +66,7 @@ class SpotifyConfig:
     client_id: str = field(default_factory=lambda: os.getenv("SPOTIFY_CLIENT_ID", ""))
     client_secret: str = field(default_factory=lambda: os.getenv("SPOTIFY_CLIENT_SECRET", ""))
     redirect_uri: str = field(default_factory=lambda: os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8000/api/v1/auth/spotify/callback"))
-    scope: str = field(default_factory=lambda: os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-library-read user-top-read user-read-playback-state"))
+    scope: str = field(default_factory=lambda: os.getenv("SPOTIFY_SCOPE", "user-read-recently-played user-library-read user-top-read user-read-playback-state user-read-private"))
     
     def __post_init__(self):
         # Require Spotify credentials only in production
@@ -164,6 +168,8 @@ class BondhuConfig:
     api_host: str = field(default_factory=lambda: os.getenv("API_HOST", "localhost"))
     api_port: int = field(default_factory=lambda: int(os.getenv("API_PORT", "8000")))
     api_debug: bool = field(default_factory=lambda: os.getenv("API_DEBUG", "false").lower() == "true")
+    # Frontend URL used by backend redirects (set FRONTEND_URL in .env)
+    frontend_url: str = field(default_factory=lambda: os.getenv("FRONTEND_URL", "http://localhost:3000"))
     
     # Security
     secret_key: str = field(default_factory=lambda: os.getenv("SECRET_KEY", ""))

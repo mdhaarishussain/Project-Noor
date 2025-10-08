@@ -8,7 +8,7 @@ import asyncio
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth, SpotifyClientCredentials
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from agents.base_agent import BaseAgent
 from core.config import get_config
@@ -40,6 +40,11 @@ class MusicIntelligenceAgent(BaseAgent):
         
         self.spotify_token = spotify_token
         self.spotify_client = None
+        
+        # Load existing tokens from database if not provided
+        if not self.spotify_token:
+            asyncio.create_task(self._load_existing_tokens())
+        
         self._initialize_spotify_client()
         
         # Initialize RL system for personalized recommendations
@@ -588,12 +593,528 @@ Provide insights based on established music psychology research while being sens
             if token_info:
                 self.spotify_token = token_info["access_token"]
                 self._initialize_spotify_client()
-                self.logger.info("Spotify authentication successful")
-                return True
+                
+                # Store tokens in Supabase
+                from core.database.supabase_client import get_supabase_client
+                supabase = get_supabase_client()
+                
+                # Calculate token expiration
+                expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_info.get("expires_in", 3600))
+                
+                # Get Spotify user profile for additional data
+                user_profile = None
+                try:
+                    user_profile = self.spotify_client.current_user()
+                except Exception as e:
+                    self.logger.warning(f"Failed to fetch Spotify user profile: {e}")
+                
+                # Store tokens and user data
+                success = await supabase.store_spotify_tokens(
+                    user_id=self.user_id,
+                    access_token=token_info["access_token"],
+                    refresh_token=token_info["refresh_token"],
+                    expires_at=expires_at,
+                    user_data=user_profile
+                )
+                
+                if success:
+                    self.logger.info(f"Spotify authentication successful and tokens stored for user {self.user_id}")
+                    
+                    # Fetch and store user's listening history on first login
+                    await self._fetch_and_store_listening_history()
+                    
+                    return True
+                else:
+                    self.logger.error(f"Failed to store Spotify tokens for user {self.user_id}")
+                    return False
         except Exception as e:
             self.logger.error(f"Error handling Spotify callback: {e}")
         
         return False
+
+    async def _load_existing_tokens(self) -> bool:
+        """Load existing Spotify tokens from database."""
+        try:
+            from core.database.supabase_client import get_supabase_client
+            supabase = get_supabase_client()
+            
+            token_data = await supabase.get_spotify_tokens(self.user_id)
+            if token_data:
+                # Check if token is still valid
+                if token_data['expires_at']:
+                    expires_at = datetime.fromisoformat(token_data['expires_at'].replace('Z', '+00:00'))
+                    current_time = datetime.now(timezone.utc)
+                    
+                    if expires_at > current_time:
+                        self.spotify_token = token_data['access_token']
+                        self._initialize_spotify_client()
+                        self.logger.info(f"Loaded existing Spotify token for user {self.user_id}")
+                        return True
+                    else:
+                        self.logger.info(f"Spotify token expired for user {self.user_id}, attempting refresh")
+                        # Attempt to refresh the token
+                        if token_data['refresh_token']:
+                            refreshed = await self._refresh_spotify_token(token_data['refresh_token'])
+                            if refreshed:
+                                return True
+                        
+            return False
+        except Exception as e:
+            self.logger.error(f"Error loading existing tokens: {e}")
+            return False
+    
+    async def _refresh_spotify_token(self, refresh_token: str) -> bool:
+        """Refresh Spotify access token using refresh token."""
+        try:
+            sp_oauth = SpotifyOAuth(
+                client_id=self.config.spotify.client_id,
+                client_secret=self.config.spotify.client_secret,
+                redirect_uri=self.config.spotify.redirect_uri,
+                scope=self.config.spotify.scope
+            )
+            
+            # Refresh the token
+            token_info = sp_oauth.refresh_access_token(refresh_token)
+            if token_info:
+                self.spotify_token = token_info["access_token"]
+                self._initialize_spotify_client()
+                
+                # Store updated tokens in Supabase
+                from core.database.supabase_client import get_supabase_client
+                supabase = get_supabase_client()
+                
+                expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_info.get("expires_in", 3600))
+                
+                success = await supabase.update_spotify_tokens(
+                    user_id=self.user_id,
+                    access_token=token_info["access_token"],
+                    refresh_token=token_info.get("refresh_token", refresh_token),  # Use new or keep old
+                    expires_at=expires_at
+                )
+                
+                if success:
+                    self.logger.info(f"Spotify token refreshed successfully for user {self.user_id}")
+                    return True
+                    
+        except Exception as e:
+            self.logger.error(f"Error refreshing Spotify token: {e}")
+            
+        return False
+    
+    async def _fetch_and_store_listening_history(self) -> bool:
+        """Fetch user's Spotify listening history and store in database for personality analysis."""
+        try:
+            if not self.spotify_client:
+                return False
+                
+            from core.database.supabase_client import get_supabase_client
+            supabase = get_supabase_client()
+            
+            # Check if history already exists to avoid duplicate fetching
+            existing_check = await supabase.supabase.table('music_listening_history').select('id').eq('user_id', self.user_id).limit(1).execute()
+            if existing_check.data:
+                self.logger.info(f"Music history already exists for user {self.user_id}, skipping initial fetch")
+                return True
+            
+            self.logger.info(f"Fetching initial Spotify listening history for user {self.user_id}")
+            
+            # Fetch different time ranges for comprehensive analysis
+            time_ranges = ['short_term', 'medium_term', 'long_term']  # 4 weeks, 6 months, all time
+            all_tracks = {}
+            all_track_ids = []
+            
+            # First, collect all track metadata without audio features
+            for time_range in time_ranges:
+                try:
+                    # Get top tracks for this time period
+                    top_tracks = self.spotify_client.current_user_top_tracks(
+                        limit=50, 
+                        time_range=time_range
+                    )
+                    
+                    if top_tracks and 'items' in top_tracks:
+                        for track in top_tracks['items']:
+                            track_id = track['id']
+                            if track_id not in all_tracks:
+                                # Store track metadata (without audio features for now)
+                                track_data = {
+                                    'user_id': self.user_id,
+                                    'spotify_track_id': track_id,
+                                    'track_name': track['name'],
+                                    'artists': [artist['name'] for artist in track['artists']],
+                                    'album_name': track['album']['name'],
+                                    'genres': [],  # Spotify doesn't provide track-level genres
+                                    'popularity': track['popularity'],
+                                    'duration_ms': track['duration_ms'],
+                                    'time_range': time_range,
+                                    'play_count_estimate': 50 - top_tracks['items'].index(track),  # Rough estimate based on position
+                                    'created_at': datetime.now(timezone.utc).isoformat()
+                                }
+                                
+                                all_tracks[track_id] = track_data
+                                all_track_ids.append(track_id)
+                                
+                    # Small delay to respect rate limits
+                    await asyncio.sleep(0.1)
+                    
+                except Exception as e:
+                    self.logger.warning(f"Error fetching {time_range} tracks: {e}")
+                    continue
+            
+            # Also get recently played tracks
+            try:
+                recent_tracks = self.spotify_client.current_user_recently_played(limit=50)
+                if recent_tracks and 'items' in recent_tracks:
+                    for item in recent_tracks['items']:
+                        track = item['track']
+                        track_id = track['id']
+                        played_at = item['played_at']
+                        
+                        if track_id not in all_tracks:
+                            track_data = {
+                                'user_id': self.user_id,
+                                'spotify_track_id': track_id,
+                                'track_name': track['name'],
+                                'artists': [artist['name'] for artist in track['artists']],
+                                'album_name': track['album']['name'],
+                                'genres': [],
+                                'popularity': track['popularity'],
+                                'duration_ms': track['duration_ms'],
+                                'time_range': 'recent',
+                                'last_played_at': played_at,
+                                'created_at': datetime.now(timezone.utc).isoformat()
+                            }
+                            
+                            all_tracks[track_id] = track_data
+                            all_track_ids.append(track_id)
+                            
+            except Exception as e:
+                self.logger.warning(f"Error fetching recent tracks: {e}")
+            
+            # Now fetch audio features for all tracks in batches using the rate-limited method
+            if all_track_ids:
+                try:
+                    self.logger.info(f"Fetching audio features for {len(all_track_ids)} tracks")
+                    audio_features_batch = await self._get_audio_features(all_track_ids)
+                    
+                    # Merge audio features into track data
+                    for track_id, track_data in all_tracks.items():
+                        if track_id in audio_features_batch:
+                            features = audio_features_batch[track_id]
+                            if features:  # features could be None if API call failed
+                                track_data.update({
+                                    'energy': features.get('energy'),
+                                    'valence': features.get('valence'),
+                                    'danceability': features.get('danceability'),
+                                    'acousticness': features.get('acousticness'),
+                                    'instrumentalness': features.get('instrumentalness'),
+                                    'tempo': features.get('tempo')
+                                })
+                        else:
+                            # Set default None values for audio features if not available
+                            track_data.update({
+                                'energy': None,
+                                'valence': None,
+                                'danceability': None,
+                                'acousticness': None,
+                                'instrumentalness': None,
+                                'tempo': None
+                            })
+                except Exception as e:
+                    self.logger.warning(f"Error fetching audio features: {e}")
+                    # Continue without audio features if they fail
+                    for track_data in all_tracks.values():
+                        track_data.update({
+                            'energy': None,
+                            'valence': None,
+                            'danceability': None,
+                            'acousticness': None,
+                            'instrumentalness': None,
+                            'tempo': None
+                        })
+            
+            # Store all tracks in database
+            if all_tracks:
+                track_list = list(all_tracks.values())
+                
+                # Insert in batches to avoid overwhelming the database
+                batch_size = 50
+                for i in range(0, len(track_list), batch_size):
+                    batch = track_list[i:i + batch_size]
+                    try:
+                        result = await supabase.supabase.table('music_listening_history').insert(batch).execute()
+                        if result.data:
+                            self.logger.info(f"Stored batch of {len(batch)} tracks for user {self.user_id}")
+                    except Exception as e:
+                        self.logger.error(f"Error storing track batch: {e}")
+                
+                self.logger.info(f"Successfully stored {len(all_tracks)} tracks for user {self.user_id}")
+                
+                # Trigger personality analysis with the new music data
+                await self._analyze_music_personality()
+                
+                return True
+            else:
+                self.logger.warning(f"No tracks found for user {self.user_id}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching and storing listening history: {e}")
+            return False
+    
+    async def _analyze_music_personality(self) -> bool:
+        """Analyze user's music history to extract personality insights and merge with existing data."""
+        try:
+            from core.database.supabase_client import get_supabase_client
+            supabase = get_supabase_client()
+            
+            # Get user's music listening history
+            history_result = await supabase.table('music_listening_history').select('*').eq('user_id', self.user_id).execute()
+            if not history_result.data:
+                self.logger.warning(f"No music history found for user {self.user_id}")
+                return False
+            
+            tracks = history_result.data
+            self.logger.info(f"Analyzing {len(tracks)} tracks for personality insights")
+            
+            # Initialize personality adjustments
+            personality_adjustments = {
+                'openness': 0.0,
+                'conscientiousness': 0.0,
+                'extraversion': 0.0,
+                'agreeableness': 0.0,
+                'neuroticism': 0.0
+            }
+            
+            total_tracks = len(tracks)
+            
+            # Analyze audio features
+            energy_scores = [t['energy'] for t in tracks if t['energy'] is not None]
+            valence_scores = [t['valence'] for t in tracks if t['valence'] is not None]
+            danceability_scores = [t['danceability'] for t in tracks if t['danceability'] is not None]
+            acousticness_scores = [t['acousticness'] for t in tracks if t['acousticness'] is not None]
+            instrumentalness_scores = [t['instrumentalness'] for t in tracks if t['instrumentalness'] is not None]
+            
+            if energy_scores:
+                avg_energy = sum(energy_scores) / len(energy_scores)
+                # High energy correlates with extraversion and lower neuroticism
+                personality_adjustments['extraversion'] += (avg_energy - 0.5) * 10  # Scale to 0-10
+                personality_adjustments['neuroticism'] -= (avg_energy - 0.5) * 5
+            
+            if valence_scores:
+                avg_valence = sum(valence_scores) / len(valence_scores)
+                # High valence (positivity) correlates with extraversion and lower neuroticism
+                personality_adjustments['extraversion'] += (avg_valence - 0.5) * 8
+                personality_adjustments['neuroticism'] -= (avg_valence - 0.5) * 8
+            
+            if danceability_scores:
+                avg_danceability = sum(danceability_scores) / len(danceability_scores)
+                # High danceability correlates with extraversion and agreeableness
+                personality_adjustments['extraversion'] += (avg_danceability - 0.5) * 6
+                personality_adjustments['agreeableness'] += (avg_danceability - 0.5) * 4
+            
+            if acousticness_scores:
+                avg_acousticness = sum(acousticness_scores) / len(acousticness_scores)
+                # High acousticness suggests appreciation for traditional/organic music (openness)
+                personality_adjustments['openness'] += (avg_acousticness - 0.3) * 5
+                personality_adjustments['conscientiousness'] += (avg_acousticness - 0.3) * 3
+            
+            if instrumentalness_scores:
+                avg_instrumentalness = sum(instrumentalness_scores) / len(instrumentalness_scores)
+                # High instrumentalness suggests openness to complex music
+                personality_adjustments['openness'] += (avg_instrumentalness - 0.2) * 8
+                personality_adjustments['extraversion'] -= (avg_instrumentalness - 0.2) * 4  # Introverts may prefer instrumental
+            
+            # Analyze genre diversity (proxy for openness)
+            unique_artists = set()
+            for track in tracks:
+                if track['artists']:
+                    unique_artists.update(track['artists'])
+            
+            artist_diversity = len(unique_artists) / max(total_tracks, 1)
+            if artist_diversity > 0.5:  # High diversity
+                personality_adjustments['openness'] += 8
+            elif artist_diversity < 0.2:  # Low diversity
+                personality_adjustments['openness'] -= 3
+                personality_adjustments['conscientiousness'] += 2  # Preference for familiar
+            
+            # Analyze time patterns for conscientiousness
+            recent_tracks = [t for t in tracks if t['time_range'] == 'recent']
+            if recent_tracks:
+                # Regular listening patterns suggest conscientiousness
+                personality_adjustments['conscientiousness'] += 3
+            
+            # Popularity analysis
+            popularity_scores = [t['popularity'] for t in tracks if t['popularity'] is not None]
+            if popularity_scores:
+                avg_popularity = sum(popularity_scores) / len(popularity_scores)
+                if avg_popularity < 30:  # Preference for obscure music
+                    personality_adjustments['openness'] += 6
+                    personality_adjustments['extraversion'] -= 2
+                elif avg_popularity > 70:  # Preference for mainstream music
+                    personality_adjustments['agreeableness'] += 3
+                    personality_adjustments['extraversion'] += 2
+            
+            # Cap adjustments to reasonable ranges (-10 to +10)
+            for trait in personality_adjustments:
+                personality_adjustments[trait] = max(-10, min(10, personality_adjustments[trait]))
+            
+            # Get current personality data
+            profile_result = await supabase.table('profiles').select('personality_openness, personality_conscientiousness, personality_extraversion, personality_agreeableness, personality_neuroticism, personality_llm_context').eq('id', self.user_id).single().execute()
+            
+            if profile_result.data:
+                current_personality = profile_result.data
+                
+                # Apply adjustments to existing scores
+                new_personality = {}
+                traits = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism']
+                
+                for trait in traits:
+                    current_score = current_personality.get(f'personality_{trait}', 50)  # Default to 50 if not set
+                    adjustment = personality_adjustments[trait]
+                    new_score = max(0, min(100, current_score + adjustment))  # Keep within 0-100 range
+                    new_personality[f'personality_{trait}'] = new_score
+                
+                # Update LLM context with music insights
+                current_context = current_personality.get('personality_llm_context', {})
+                if not isinstance(current_context, dict):
+                    current_context = {}
+                
+                music_insights = {
+                    'music_analysis_date': datetime.now(timezone.utc).isoformat(),
+                    'tracks_analyzed': total_tracks,
+                    'music_personality_adjustments': personality_adjustments,
+                    'music_features': {
+                        'avg_energy': sum(energy_scores) / len(energy_scores) if energy_scores else None,
+                        'avg_valence': sum(valence_scores) / len(valence_scores) if valence_scores else None,
+                        'avg_danceability': sum(danceability_scores) / len(danceability_scores) if danceability_scores else None,
+                        'artist_diversity': artist_diversity,
+                        'avg_popularity': sum(popularity_scores) / len(popularity_scores) if popularity_scores else None
+                    }
+                }
+                
+                current_context['music_insights'] = music_insights
+                new_personality['personality_llm_context'] = current_context
+                
+                # Update the database
+                update_result = await supabase.table('profiles').update(new_personality).eq('id', self.user_id).execute()
+                
+                if update_result.data:
+                    self.logger.info(f"Successfully updated personality profile with music insights for user {self.user_id}")
+                    self.logger.info(f"Personality adjustments: {personality_adjustments}")
+                    return True
+                else:
+                    self.logger.error(f"Failed to update personality profile for user {self.user_id}")
+                    return False
+            else:
+                self.logger.warning(f"No existing personality profile found for user {self.user_id}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error analyzing music personality: {e}")
+            return False
+    
+    async def _get_stored_genre_history(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get user's listening history organized by GenZ genres from stored data."""
+        try:
+            from core.database.supabase_client import get_supabase_client
+            supabase = get_supabase_client()
+            
+            # Get stored listening history
+            history_result = await supabase.supabase.table('music_listening_history').select('*').eq('user_id', self.user_id).order('play_count_estimate', desc=True).limit(200).execute()
+            
+            if not history_result.data:
+                return {}
+            
+            tracks = history_result.data
+            self.logger.info(f"Retrieved {len(tracks)} tracks from stored history for user {self.user_id}")
+            
+            # Organize tracks by GenZ genre
+            genre_tracks = {genre: [] for genre in self.genz_genre_map.keys()}
+            genre_tracks["Uncategorized"] = []
+            
+            for track in tracks:
+                # Convert to format expected by recommendation system
+                track_data = {
+                    'id': track['spotify_track_id'],
+                    'name': track['track_name'],
+                    'artists': [{'name': artist} for artist in track['artists']] if track['artists'] else [],
+                    'album': {'name': track['album_name']},
+                    'popularity': track['popularity'],
+                    'duration_ms': track['duration_ms'],
+                    'energy': track['energy'],
+                    'valence': track['valence'],
+                    'danceability': track['danceability'],
+                    'acousticness': track['acousticness'],
+                    'instrumentalness': track['instrumentalness'],
+                    'tempo': track['tempo'],
+                    'play_count': track.get('play_count_estimate', 1),
+                    'time_range': track.get('time_range', 'unknown')
+                }
+                
+                # Try to classify by genre based on audio features and artist patterns
+                classified_genre = await self._classify_track_genre(track_data)
+                if classified_genre:
+                    genre_tracks[classified_genre].append(track_data)
+                else:
+                    genre_tracks["Uncategorized"].append(track_data)
+            
+            # Remove empty genres and sort by play count
+            final_genre_tracks = {}
+            for genre, tracks_list in genre_tracks.items():
+                if tracks_list:
+                    # Sort by play count and keep top tracks
+                    sorted_tracks = sorted(tracks_list, key=lambda x: x.get('play_count', 0), reverse=True)
+                    final_genre_tracks[genre] = sorted_tracks[:20]  # Keep top 20 per genre
+            
+            self.logger.info(f"Organized stored history into {len(final_genre_tracks)} genres")
+            return final_genre_tracks
+            
+        except Exception as e:
+            self.logger.error(f"Error getting stored genre history: {e}")
+            return {}
+    
+    async def _classify_track_genre(self, track_data: Dict[str, Any]) -> Optional[str]:
+        """Classify a track into a GenZ genre based on audio features."""
+        try:
+            # Simple heuristic-based classification
+            energy = track_data.get('energy', 0.5)
+            valence = track_data.get('valence', 0.5)
+            danceability = track_data.get('danceability', 0.5)
+            acousticness = track_data.get('acousticness', 0.5)
+            instrumentalness = track_data.get('instrumentalness', 0)
+            tempo = track_data.get('tempo', 120)
+            
+            # Lo-fi Chill: Low energy, high acousticness, often instrumental
+            if energy < 0.4 and acousticness > 0.3 and instrumentalness > 0.3:
+                return 'Lo-fi Chill'
+            
+            # Pop Anthems: High energy, high danceability, moderate valence
+            elif energy > 0.7 and danceability > 0.6 and valence > 0.5:
+                return 'Pop Anthems'
+            
+            # Hype Beats: Very high energy, high danceability, fast tempo
+            elif energy > 0.8 and danceability > 0.7 and tempo > 130:
+                return 'Hype Beats'
+            
+            # Sad Boy Hours: Low valence, moderate energy
+            elif valence < 0.3 and energy < 0.6:
+                return 'Sad Boy Hours'
+            
+            # R&B Feels: Moderate energy, moderate danceability, soulful feel
+            elif 0.4 < energy < 0.7 and 0.4 < danceability < 0.7 and acousticness < 0.5:
+                return 'R&B Feels'
+            
+            # Indie Vibes: Moderate energy, low danceability, some acousticness
+            elif 0.3 < energy < 0.6 and danceability < 0.6 and acousticness > 0.2:
+                return 'Indie Vibes'
+            
+            # Default fallback
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error classifying track genre: {e}")
+            return None
     
     async def fetch_genre_based_history(self, time_range: str = "medium_term") -> Dict[str, List[Dict[str, Any]]]:
         """
@@ -711,9 +1232,12 @@ Provide insights based on established music psychology research while being sens
         try:
             recommendations = {}
             
-            # Get user's listening history by genre (only if we have user token)
-            if use_history and self.spotify_token:
-                genre_history = await self.fetch_genre_based_history()
+            # Get user's listening history by genre (prefer stored history, fallback to live fetch)
+            if use_history:
+                genre_history = await self._get_stored_genre_history()
+                if not genre_history and self.spotify_token:
+                    # Fallback to live fetch if no stored history
+                    genre_history = await self.fetch_genre_based_history()
             else:
                 genre_history = {}
             
@@ -777,10 +1301,23 @@ Provide insights based on established music psychology research while being sens
         if self._seed_genres_cache is not None:
             return self._seed_genres_cache
         try:
-            data = await asyncio.to_thread(self.spotify_client.recommendations_genre_seeds)
-            genres = [g.lower() for g in data.get('genres', [])]
-            self._seed_genres_cache = genres
-            return genres
+            if not self.spotify_client:
+                raise Exception("Spotify client not initialized")
+            
+            # Use rate limited call for consistency
+            data = await spotify_rate_limiter.rate_limited_call(
+                "genre_seeds",
+                self.spotify_client.recommendation_genre_seeds
+            )
+            
+            if data and 'genres' in data:
+                genres = [g.lower() for g in data['genres']]
+                self._seed_genres_cache = genres
+                self.logger.info(f"Loaded {len(genres)} available seed genres from Spotify")
+                return genres
+            else:
+                raise Exception("No genres returned from API")
+                
         except Exception as e:
             self.logger.warning(f"Failed to load available seed genres: {e}")
             # Reasonable defaults if API fails
@@ -791,46 +1328,94 @@ Provide insights based on established music psychology research while being sens
             return defaults
 
     def _normalize_seed(self, s: str) -> str:
-        s = s.lower().replace('&', '-').replace(' ', '-')
+        """Normalize a genre string to match Spotify's seed format."""
+        s = s.lower()
+        # Common replacements that Spotify uses
+        replacements = {
+            '&': 'n',  # r&b -> rnb
+            ' ': '-',  # indie pop -> indie-pop
+            '_': '-',  # alternative_rock -> alternative-rock
+        }
+        
+        for old, new in replacements.items():
+            s = s.replace(old, new)
+        
         # Remove double hyphens
         while '--' in s:
             s = s.replace('--', '-')
-        return ''.join(ch for ch in s if ch.isalnum() or ch == '-')
+            
+        # Remove leading/trailing hyphens
+        s = s.strip('-')
+        
+        # Keep only alphanumeric and hyphens
+        s = ''.join(ch for ch in s if ch.isalnum() or ch == '-')
+        
+        return s
 
     async def _get_valid_seed_genres_for_genz(self, genz_genre: str) -> List[str]:
         """Translate a GenZ genre to valid Spotify recommendation seed genres."""
         available = set(await self._get_available_seed_genres())
+        self.logger.info(f"Available Spotify seed genres count: {len(available)}")
+        
+        # Log first 20 available genres for debugging
+        self.logger.info(f"Sample available genres: {sorted(list(available))[:20]}")
 
-        # Hand-tuned preferred seeds per GenZ genre
+        # Exact Spotify seed names - these are known to work
         preferred: Dict[str, List[str]] = {
-            'Lo-fi Chill': ['chill','ambient','acoustic'],
-            'Pop Anthems': ['pop','dance','electronic'],
-            'Hype Beats': ['hip-hop','trap','electronic'],
-            'Indie Vibes': ['indie','alternative','indie-pop'],
-            'R&B Feels': ['r-n-b','soul'],
-            'Sad Boy Hours': ['emo','indie','acoustic'],
+            'Lo-fi Chill': ['ambient', 'chill', 'acoustic', 'study', 'sleep'],
+            'Pop Anthems': ['pop', 'dance', 'electro', 'synth-pop', 'electronic'],
+            'Hype Beats': ['hip-hop', 'trap', 'rap', 'electronic', 'dance'],
+            'Indie Vibes': ['indie', 'indie-pop', 'indie-rock', 'alternative', 'rock'],
+            'R&B Feels': ['r-n-b', 'soul', 'funk', 'neo-soul', 'groove'],
+            'Sad Boy Hours': ['emo', 'indie', 'alternative', 'sad', 'melancholy'],
         }
 
         seeds = []
-        for cand in preferred.get(genz_genre, []):
-            norm = self._normalize_seed(cand)
-            if norm in available:
-                seeds.append(norm)
+        candidates = preferred.get(genz_genre, [])
+        
+        self.logger.info(f"Looking for seeds for {genz_genre}: candidates = {candidates}")
+        
+        # First try exact matches
+        for candidate in candidates:
+            if candidate in available:
+                seeds.append(candidate)
+                self.logger.info(f"Found exact match: {candidate}")
+            else:
+                self.logger.info(f"No exact match for: {candidate}")
 
-        # If still empty, try to normalize our original map entries
+        # If still empty, try normalized matches
         if not seeds:
-            for raw in self.genz_genre_map.get(genz_genre, [])[:5]:
-                norm = self._normalize_seed(raw)
-                if norm in available and norm not in seeds:
+            for candidate in candidates:
+                norm = self._normalize_seed(candidate)
+                if norm in available:
                     seeds.append(norm)
+                    self.logger.info(f"Found normalized match: {candidate} -> {norm}")
 
-        # Final fallback to broadly matching seeds
+        # If still empty, try substring matching
         if not seeds:
-            generic = ['pop','indie','hip-hop','r-n-b','chill','electronic']
-            seeds = [g for g in generic if g in available]
+            for candidate in candidates:
+                for available_genre in available:
+                    if candidate.lower() in available_genre or available_genre in candidate.lower():
+                        if available_genre not in seeds:
+                            seeds.append(available_genre)
+                            self.logger.info(f"Found substring match: {candidate} -> {available_genre}")
 
-        # Ensure non-empty and max 3
-        return seeds[:3] if seeds else ['pop']
+        # Ultimate fallback to guaranteed working genres
+        if not seeds:
+            fallbacks = ['pop', 'rock', 'electronic', 'hip-hop', 'dance']
+            for fallback in fallbacks:
+                if fallback in available:
+                    seeds.append(fallback)
+                    break
+            
+            # If even fallbacks don't work, just use the first available genre
+            if not seeds and available:
+                seeds.append(list(available)[0])
+                self.logger.warning(f"Using first available genre as ultimate fallback: {seeds[0]}")
+
+        final_seeds = seeds[:2]  # Limit to 2 seeds to avoid API limits
+        self.logger.info(f"Final seeds for {genz_genre}: {final_seeds}")
+        return final_seeds
     
     async def _get_spotify_recommendations(
         self,
@@ -843,20 +1428,57 @@ Provide insights based on established music psychology research while being sens
         try:
             # Prepare seeds
             track_ids = [t["id"] for t in (seed_tracks or [])[:2]]
-            genres = seed_genres[:2] if seed_genres else []
+            
+            # Validate genres against available seed genres
+            available_genres = set(await self._get_available_seed_genres())
+            valid_genres = [g for g in (seed_genres or []) if g in available_genres][:2]
+            
+            self.logger.info(f"Recommendations request - Requested genres: {seed_genres}, Valid genres: {valid_genres}, Track seeds: {len(track_ids)}")
             
             # Need at least one seed
-            if not track_ids and not genres:
+            if not track_ids and not valid_genres:
+                self.logger.warning(f"No valid seeds for recommendations!")
+                self.logger.warning(f"Requested genres: {seed_genres}")
+                self.logger.warning(f"Available genres sample: {sorted(list(available_genres))[:20]}")
                 return []
             
-            # Get recommendations with rate limiting
-            results = await spotify_rate_limiter.rate_limited_call(
-                "recommendations",
-                self.spotify_client.recommendations,
-                seed_tracks=track_ids if track_ids else None,
-                seed_genres=genres if genres else None,
-                limit=limit
-            )
+            # Get recommendations with rate limiting and error handling
+            try:
+                results = await spotify_rate_limiter.rate_limited_call(
+                    "recommendations",
+                    self.spotify_client.recommendations,
+                    seed_tracks=track_ids if track_ids else None,
+                    seed_genres=valid_genres if valid_genres else None,
+                    limit=limit
+                )
+                
+                if not results:
+                    self.logger.warning("Spotify recommendations API returned None")
+                    return []
+                    
+            except Exception as api_error:
+                self.logger.error(f"Spotify recommendations API error: {api_error}")
+                self.logger.error(f"Request parameters - seed_tracks: {track_ids}, seed_genres: {valid_genres}, limit: {limit}")
+                
+                # Try fallback with just one genre if we had multiple
+                if len(valid_genres) > 1:
+                    self.logger.info("Retrying with single genre seed...")
+                    try:
+                        results = await spotify_rate_limiter.rate_limited_call(
+                            "recommendations",
+                            self.spotify_client.recommendations,
+                            seed_genres=[valid_genres[0]],
+                            limit=limit
+                        )
+                        if results:
+                            self.logger.info("Fallback with single genre succeeded")
+                        else:
+                            return []
+                    except Exception as fallback_error:
+                        self.logger.error(f"Fallback also failed: {fallback_error}")
+                        return []
+                else:
+                    return []
             
             tracks = results.get("tracks", [])
 
@@ -868,11 +1490,20 @@ Provide insights based on established music psychology research while being sens
             enriched_tracks = []
             for track in tracks:
                 track_id = track.get("id")
+                # Get album image (use largest available image)
+                album_images = track.get("album", {}).get("images", [])
+                album_image = None
+                if album_images:
+                    # Sort by size (largest first) and take the first one
+                    sorted_images = sorted(album_images, key=lambda x: x.get('width', 0) * x.get('height', 0), reverse=True)
+                    album_image = sorted_images[0].get('url') if sorted_images else None
+
                 enriched_track = {
                     "id": track_id,
                     "name": track.get("name"),
                     "artists": [a.get("name") for a in track.get("artists", [])],
                     "album": track.get("album", {}).get("name"),
+                    "album_image": album_image,
                     "preview_url": track.get("preview_url"),
                     "external_url": track.get("external_urls", {}).get("spotify"),
                     "duration_ms": track.get("duration_ms"),
@@ -906,87 +1537,274 @@ Provide insights based on established music psychology research while being sens
         songs_per_genre: int = 3,
         refresh_salt: Optional[int] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Generate recommendations without a user token using app credentials.
-
-        Uses Spotify recommendation seeds mapped from GenZ genres to return real tracks.
-        Falls back to simple search if recommendations fail.
+        """
+        Generate personality-only recommendations WITHOUT using Spotify history.
+        This mode is for users who continue without login.
+        
+        Uses pure personality trait scoring to recommend songs from Spotify's catalog
+        based on audio features and genre mapping to personality traits.
         """
         try:
+            self.logger.info(f"Generating personality-only recommendations for user {self.user_id}")
             recommendations: Dict[str, List[Dict[str, Any]]] = {}
             target_genres = genres if genres else list(self.genz_genre_map.keys())
 
-            # Simple heuristics: pick top-N genres by alignment to personality
-            def genre_alignment(genz: str) -> float:
-                score = 0.0
-                for sp_genre in self.genz_genre_map.get(genz, []):
-                    mapping = self.genre_personality_map.get(sp_genre, {})
+            # Advanced personality-to-genre alignment scoring
+            def calculate_personality_genre_alignment(genz_genre: str) -> float:
+                """Calculate how well a GenZ genre aligns with user's personality profile."""
+                alignment_score = 0.0
+                
+                # Map personality traits to audio features preferences
+                personality_audio_preferences = {
+                    PersonalityTrait.EXTRAVERSION: {
+                        'energy': personality_profile.get(PersonalityTrait.EXTRAVERSION, 50) / 100,
+                        'valence': personality_profile.get(PersonalityTrait.EXTRAVERSION, 50) / 100,
+                        'danceability': personality_profile.get(PersonalityTrait.EXTRAVERSION, 50) / 100,
+                    },
+                    PersonalityTrait.OPENNESS: {
+                        'instrumentalness': personality_profile.get(PersonalityTrait.OPENNESS, 50) / 100,
+                        'acousticness': personality_profile.get(PersonalityTrait.OPENNESS, 50) / 100,
+                    },
+                    PersonalityTrait.NEUROTICISM: {
+                        'valence': 1.0 - (personality_profile.get(PersonalityTrait.NEUROTICISM, 50) / 100),  # High neuroticism = low valence preference
+                        'energy': 0.5 + (personality_profile.get(PersonalityTrait.NEUROTICISM, 50) / 200),  # Moderate energy for neurotic
+                    }
+                }
+                
+                # Genre-specific audio feature expectations
+                genre_audio_profiles = {
+                    'Lo-fi Chill': {'energy': 0.3, 'valence': 0.5, 'danceability': 0.3, 'acousticness': 0.7, 'instrumentalness': 0.6},
+                    'Pop Anthems': {'energy': 0.8, 'valence': 0.8, 'danceability': 0.8, 'acousticness': 0.2, 'instrumentalness': 0.1},
+                    'Hype Beats': {'energy': 0.9, 'valence': 0.7, 'danceability': 0.9, 'acousticness': 0.1, 'instrumentalness': 0.1},
+                    'Indie Vibes': {'energy': 0.5, 'valence': 0.6, 'danceability': 0.4, 'acousticness': 0.5, 'instrumentalness': 0.3},
+                    'R&B Feels': {'energy': 0.6, 'valence': 0.7, 'danceability': 0.7, 'acousticness': 0.3, 'instrumentalness': 0.2},
+                    'Sad Boy Hours': {'energy': 0.3, 'valence': 0.2, 'danceability': 0.3, 'acousticness': 0.6, 'instrumentalness': 0.3},
+                }
+                
+                expected_features = genre_audio_profiles.get(genz_genre, {})
+                
+                # Calculate alignment based on personality preferences vs genre characteristics
+                for trait, preferences in personality_audio_preferences.items():
+                    trait_score = personality_profile.get(trait, 50) / 100  # Normalize to 0-1
+                    
+                    for feature, preference_value in preferences.items():
+                        if feature in expected_features:
+                            genre_value = expected_features[feature]
+                            # Higher score if personality preference matches genre characteristics
+                            feature_alignment = 1.0 - abs(preference_value - genre_value)
+                            alignment_score += feature_alignment * trait_score
+                
+                # Add bonus for genre-personality direct mappings
+                for spotify_genre in self.genz_genre_map.get(genz_genre, []):
+                    mapping = self.genre_personality_map.get(spotify_genre, {})
                     for trait_name, coeff in mapping.items():
                         try:
                             trait_enum = PersonalityTrait(trait_name)
-                            score += coeff * personality_profile.get(trait_enum, 0.5)
+                            trait_value = personality_profile.get(trait_enum, 50) / 100
+                            alignment_score += abs(coeff) * trait_value * 0.5  # Weight direct mappings
                         except Exception:
                             continue
-                return score
+                
+                return alignment_score
 
-            ranked = sorted(target_genres, key=genre_alignment, reverse=True)
-            # Apply light shuffle with refresh_salt for diversity across refreshes
+            # Rank genres by personality alignment
+            ranked_genres = sorted(target_genres, key=calculate_personality_genre_alignment, reverse=True)
+            
+            # Apply refresh-based shuffling for variety while maintaining personality preference
             if refresh_salt is not None:
                 try:
-                    import random as _rnd
-                    r = _rnd.Random(refresh_salt)
-                    r.shuffle(ranked)
+                    import random
+                    rng = random.Random(refresh_salt)
+                    # Keep top 3 personality-matched genres, shuffle the rest
+                    top_genres = ranked_genres[:3]
+                    other_genres = ranked_genres[3:]
+                    rng.shuffle(other_genres)
+                    ranked_genres = top_genres + other_genres
                 except Exception:
                     pass
-            for genz in ranked:
-                seeds = await self._get_valid_seed_genres_for_genz(genz)
-                items = await self._get_spotify_recommendations(
-                    seed_tracks=None,
-                    seed_genres=seeds[:2],
+            
+            self.logger.info(f"Personality-ranked genres: {ranked_genres[:5]}")
+            
+            for genz_genre in ranked_genres:
+                # Get valid Spotify seed genres for this GenZ genre
+                spotify_seeds = await self._get_valid_seed_genres_for_genz(genz_genre)
+                
+                # Generate personality-tuned recommendations
+                candidate_tracks = await self._get_personality_tuned_recommendations(
+                    genz_genre=genz_genre,
+                    spotify_seeds=spotify_seeds,
+                    personality_profile=personality_profile,
                     limit=songs_per_genre * 3,
-                    salt=refresh_salt,
+                    refresh_salt=refresh_salt
                 )
 
                 # If recommendations API failed, fallback to simple search
-                if not items:
+                if not candidate_tracks:
                     try:
-                        search_q = f"{seeds[0]}"
-                        res = await asyncio.to_thread(self.spotify_client.search, q=search_q, type='track', limit=songs_per_genre * 3)
+                        search_query = f"{spotify_seeds[0] if spotify_seeds else genz_genre}"
+                        res = await asyncio.to_thread(self.spotify_client.search, q=search_query, type='track', limit=songs_per_genre * 3)
                         tracks = res.get('tracks', {}).get('items', [])
                         track_ids = [t.get('id') for t in tracks if t.get('id')]
-                        feats = await self._get_audio_features(track_ids, salt=refresh_salt)
-                        items = []
-                        for t in tracks:
-                            tid = t.get('id')
-                            features = feats.get(tid, {}) if tid else {}
-                            items.append({
-                                "id": tid or f"search-{genz}",
-                                "name": t.get('name', 'Unknown'),
-                                "artists": [a.get('name') for a in t.get('artists', [])],
-                                "album": t.get('album', {}).get('name'),
-                                "preview_url": t.get('preview_url'),
-                                "external_url": t.get('external_urls', {}).get('spotify', f"https://open.spotify.com/search/{search_q}"),
-                                "duration_ms": t.get('duration_ms'),
-                                "popularity": t.get('popularity'),
+                        audio_features = await self._get_audio_features(track_ids, salt=refresh_salt)
+                        candidate_tracks = []
+                        for track in tracks:
+                            track_id = track.get('id')
+                            features = audio_features.get(track_id, {}) if track_id else {}
+                            
+                            # Get album image
+                            album_images = track.get("album", {}).get("images", [])
+                            album_image = None
+                            if album_images:
+                                sorted_images = sorted(album_images, key=lambda x: x.get('width', 0) * x.get('height', 0), reverse=True)
+                                album_image = sorted_images[0].get('url') if sorted_images else None
+                            
+                            candidate_tracks.append({
+                                "id": track_id or f"search-{genz_genre}-{len(candidate_tracks)}",
+                                "name": track.get('name', 'Unknown'),
+                                "artists": [a.get('name') for a in track.get('artists', [])],
+                                "album": track.get('album', {}).get('name'),
+                                "album_image": album_image,
+                                "preview_url": track.get('preview_url'),
+                                "external_url": track.get('external_urls', {}).get('spotify', f"https://open.spotify.com/search/{search_query}"),
+                                "duration_ms": track.get('duration_ms'),
+                                "popularity": track.get('popularity'),
                                 "energy": features.get('energy'),
                                 "valence": features.get('valence'),
                                 "danceability": features.get('danceability'),
                                 "tempo": features.get('tempo'),
                             })
-                    except Exception:
-                        items = []
+                    except Exception as e:
+                        self.logger.warning(f"Error in fallback search for {genz_genre}: {e}")
+                        candidate_tracks = []
 
-                # Add personality/genre metadata
-                for song in items:
-                    song['genz_genre'] = genz
-                    song['genre'] = genz
-                    song['personality_match'] = self._calculate_personality_match(song, personality_profile, genz)
+                # Add personality/genre metadata to tracks
+                for song in candidate_tracks:
+                    song['genz_genre'] = genz_genre
+                    song['genre'] = genz_genre
+                    song['personality_match'] = self._calculate_personality_match(song, personality_profile, genz_genre)
 
-                recommendations[genz] = items[:songs_per_genre]
+                # Store top personality-matched tracks for this genre
+                if candidate_tracks:
+                    # Sort by personality match score and take top tracks
+                    sorted_tracks = sorted(candidate_tracks, key=lambda x: x.get('personality_match', 0), reverse=True)
+                    recommendations[genz_genre] = sorted_tracks[:songs_per_genre]
+
+            self.logger.info(f"Generated personality-only recommendations for {len(recommendations)} genres")
+            return recommendations
 
             return recommendations
         except Exception as e:
             self.logger.error(f"Error building persona-only recommendations: {e}")
             return {}
+
+    async def _get_personality_tuned_recommendations(
+        self,
+        genz_genre: str,
+        spotify_seeds: List[str],
+        personality_profile: Dict[PersonalityTrait, float],
+        limit: int = 10,
+        refresh_salt: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get Spotify recommendations tuned specifically to personality traits.
+        Uses personality profile to set target audio features for better matching.
+        """
+        try:
+            if not spotify_seeds:
+                return []
+
+            # Convert personality traits to target audio features
+            target_features = self._personality_to_audio_features(personality_profile)
+            
+            # Get recommendations with personality-tuned target features
+            results = await spotify_rate_limiter.rate_limited_call(
+                "recommendations",
+                self.spotify_client.recommendations,
+                seed_genres=spotify_seeds[:2],
+                limit=limit,
+                **target_features  # Pass target audio features based on personality
+            )
+            
+            if not results:
+                return []
+            
+            tracks = results.get("tracks", [])
+            
+            # Enrich with audio features and album images
+            track_ids = [t.get("id") for t in tracks if t.get("id")]
+            audio_features = await self._get_audio_features(track_ids, salt=refresh_salt)
+
+            enriched_tracks = []
+            for track in tracks:
+                track_id = track.get("id")
+                
+                # Get album image
+                album_images = track.get("album", {}).get("images", [])
+                album_image = None
+                if album_images:
+                    sorted_images = sorted(album_images, key=lambda x: x.get('width', 0) * x.get('height', 0), reverse=True)
+                    album_image = sorted_images[0].get('url') if sorted_images else None
+
+                enriched_track = {
+                    "id": track_id,
+                    "name": track.get("name"),
+                    "artists": [a.get("name") for a in track.get("artists", [])],
+                    "album": track.get("album", {}).get("name"),
+                    "album_image": album_image,
+                    "preview_url": track.get("preview_url"),
+                    "external_url": track.get("external_urls", {}).get("spotify"),
+                    "duration_ms": track.get("duration_ms"),
+                    "popularity": track.get("popularity"),
+                }
+                
+                # Add audio features if available
+                if audio_features and track_id in audio_features:
+                    features = audio_features.get(track_id, {})
+                    enriched_track.update({
+                        "energy": features.get("energy", 0.5),
+                        "valence": features.get("valence", 0.5),
+                        "danceability": features.get("danceability", 0.5),
+                        "acousticness": features.get("acousticness", 0.5),
+                        "instrumentalness": features.get("instrumentalness", 0.5),
+                        "tempo": features.get("tempo", 120),
+                    })
+                
+                enriched_tracks.append(enriched_track)
+            
+            return enriched_tracks
+            
+        except Exception as e:
+            self.logger.error(f"Error getting personality-tuned recommendations: {e}")
+            return []
+
+    def _personality_to_audio_features(self, personality_profile: Dict[PersonalityTrait, float]) -> Dict[str, float]:
+        """Convert personality profile to Spotify API target audio features."""
+        # Normalize personality scores to 0-1 range
+        extraversion = personality_profile.get(PersonalityTrait.EXTRAVERSION, 50) / 100
+        openness = personality_profile.get(PersonalityTrait.OPENNESS, 50) / 100
+        neuroticism = personality_profile.get(PersonalityTrait.NEUROTICISM, 50) / 100
+        agreeableness = personality_profile.get(PersonalityTrait.AGREEABLENESS, 50) / 100
+        conscientiousness = personality_profile.get(PersonalityTrait.CONSCIENTIOUSNESS, 50) / 100
+
+        # Map personality traits to target audio features for Spotify recommendations
+        target_features = {}
+        
+        # Energy: Higher for extraverts, lower for introverts
+        target_features["target_energy"] = max(0.1, min(0.9, 0.3 + (extraversion * 0.6)))
+        
+        # Valence (positivity): Lower for high neuroticism, higher for low neuroticism
+        target_features["target_valence"] = max(0.1, min(0.9, 0.7 - (neuroticism * 0.5)))
+        
+        # Danceability: Higher for extraverts and agreeable people
+        target_features["target_danceability"] = max(0.1, min(0.9, 0.4 + (extraversion * 0.3) + (agreeableness * 0.2)))
+        
+        # Acousticness: Higher for open and conscientious people
+        target_features["target_acousticness"] = max(0.0, min(0.8, 0.2 + (openness * 0.3) + (conscientiousness * 0.2)))
+        
+        # Instrumentalness: Higher for highly open individuals
+        target_features["target_instrumentalness"] = max(0.0, min(0.6, openness * 0.4))
+
+        return target_features
     
     def _calculate_personality_match(
         self, 
@@ -1009,32 +1827,40 @@ Provide insights based on established music psychology research while being sens
                 return g.replace(' ', '-')
 
             for genre in spotify_genres:
-                candidates = [norm(genre), hyphenate(norm(genre))]
-                # Also check original genre_personality_map keys lowercased
+                candidates = [norm(genre), hyphenate(norm(genre)), genre]
+                # Find the right mapping for this genre
+                mapping = {}
                 for cand in candidates:
                     if cand in self.genre_personality_map:
                         mapping = self.genre_personality_map[cand]
-                    else:
-                        # Try direct lookup if keys were defined without normalization
-                        mapping = self.genre_personality_map.get(genre, {})
-                    if not mapping:
-                        continue
-                    for trait, correlation in self.genre_personality_map[genre].items():
-                        trait_enum = PersonalityTrait(trait)
-                        user_trait_score = personality_profile.get(trait_enum, 0.5)
-                        # Positive correlation adds to match
-                        match_score += correlation * user_trait_score * 0.1
+                        break
+                
+                # Process the mapping if found
+                for trait, correlation in mapping.items():
+                    if correlation is not None and isinstance(correlation, (int, float)):  # Guard against None correlation
+                        try:
+                            trait_enum = PersonalityTrait(trait)
+                            user_trait_score = personality_profile.get(trait_enum, 0.5)
+                            if user_trait_score is not None and isinstance(user_trait_score, (int, float)):
+                                # Positive correlation adds to match
+                                match_score += correlation * user_trait_score * 0.1
+                        except (ValueError, TypeError):
+                            continue
             
-            # Audio features alignment
-            if "energy" in song:
+            # Audio features alignment - guard against None values
+            energy = song.get("energy")
+            if energy is not None and isinstance(energy, (int, float)):
                 # High energy for extraverts
                 extraversion = personality_profile.get(PersonalityTrait.EXTRAVERSION, 0.5)
-                match_score += (song["energy"] * extraversion - 0.25) * 0.15
+                if extraversion is not None and isinstance(extraversion, (int, float)):
+                    match_score += (energy * extraversion - 0.25) * 0.15
             
-            if "valence" in song:
+            valence = song.get("valence")
+            if valence is not None and isinstance(valence, (int, float)):
                 # Happy music for emotionally stable (low neuroticism)
                 neuroticism = personality_profile.get(PersonalityTrait.NEUROTICISM, 0.5)
-                match_score += (song["valence"] * (1 - neuroticism) - 0.25) * 0.15
+                if neuroticism is not None and isinstance(neuroticism, (int, float)):
+                    match_score += (valence * (1 - neuroticism) - 0.25) * 0.15
             
             # Normalize to 0-1 range
             return max(0.0, min(1.0, match_score))

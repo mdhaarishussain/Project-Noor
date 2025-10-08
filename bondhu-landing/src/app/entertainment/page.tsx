@@ -11,6 +11,7 @@ import { ArrowLeft, Play, Pause, Volume2, ChevronRight, Gamepad2, Camera, Headph
 import { Slider } from "@/components/ui/slider"
 import { GlowingEffect } from "@/components/ui/glowing-effect"
 import AnimatedLoader from "@/components/ui/animated-loader"
+import { toast } from "sonner"
 import type { Profile } from "@/types/auth"
 import { Logo } from "@/components/logo"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -695,6 +696,14 @@ function EntertainmentHub({
   addActivityToHistory: (activity: any) => void
 }) {
   const [activeSection, setActiveSection] = useState(() => {
+    // Check URL parameters first
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get('spotify_connected') === 'true' || urlParams.get('spotify_error')) {
+        return 'music'  // Auto-switch to music tab after Spotify OAuth
+      }
+    }
+    
     // Dynamic default section based on user preferences or time of day
     const hour = new Date().getHours()
     if (hour < 12) return userPreferences?.morningPreference || 'games'
@@ -725,6 +734,23 @@ function EntertainmentHub({
     return 'Creative'
   })
   const [recentActivity, setRecentActivity] = useState<any[]>([])
+
+  // Handle URL parameters from Spotify OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('spotify_connected') === 'true') {
+      toast.success('🎵 Spotify connected successfully!')
+      setActiveSection('music')
+      // Clean up URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (urlParams.get('spotify_error')) {
+      const error = urlParams.get('spotify_error')
+      toast.error(`Spotify connection failed: ${error}`)
+      setActiveSection('music')
+      // Clean up URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
 
   // Update mood dynamically
   useEffect(() => {

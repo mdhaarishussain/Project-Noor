@@ -81,6 +81,21 @@ ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS personality_raw_responses JSONB;
 ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS last_name_change timestamp with time zone;
+
+-- Add Spotify OAuth integration columns to profiles table
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS spotify_access_token TEXT;
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS spotify_refresh_token TEXT;
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS spotify_token_expires_at TIMESTAMPTZ;
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS spotify_user_id TEXT;
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS spotify_user_email TEXT;
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS spotify_connected_at TIMESTAMPTZ;
+
 -- Add missing columns to other tables for new features
 ALTER TABLE recommendations
 ADD COLUMN IF NOT EXISTS is_completed boolean default false;
@@ -937,77 +952,93 @@ ANALYZE entertainment_interactions;
 ANALYZE entertainment_sessions;
 ANALYZE entertainment_preferences;
 ANALYZE entertainment_analytics;
+
 -- ============================================================================
 -- CHAT PERSONALITY INSIGHTS TABLE
 -- ============================================================================
 -- Add chat_personality_insights table for storing personality analysis from conversations
 -- This table captures personality trait adjustments derived from chat message patterns
+
 CREATE TABLE IF NOT EXISTS chat_personality_insights (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     session_id UUID NOT NULL,
     timestamp TIMESTAMPTZ DEFAULT NOW(),
-    adjustments JSONB NOT NULL,
-    -- Contains trait adjustments: {"openness": 0.3, "conscientiousness": 0.2, ...}
-    message_context TEXT,
-    -- Snippet of the message that triggered the insights
+    adjustments JSONB NOT NULL, -- Contains trait adjustments: {"openness": 0.3, "conscientiousness": 0.2, ...}
+    message_context TEXT, -- Snippet of the message that triggered the insights
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
 -- Indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_chat_personality_insights_user_id ON chat_personality_insights(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_personality_insights_timestamp ON chat_personality_insights(timestamp);
 CREATE INDEX IF NOT EXISTS idx_chat_personality_insights_session ON chat_personality_insights(session_id);
+
 -- Add Row Level Security
 ALTER TABLE chat_personality_insights ENABLE ROW LEVEL SECURITY;
+
 -- Drop existing policies to avoid conflicts
 DROP POLICY IF EXISTS "Users can view their own chat personality insights" ON chat_personality_insights;
 DROP POLICY IF EXISTS "System can insert chat personality insights" ON chat_personality_insights;
+
 -- Policy: Users can only view their own personality insights
-CREATE POLICY "Users can view their own chat personality insights" ON chat_personality_insights FOR
-SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can view their own chat personality insights"
+    ON chat_personality_insights
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
 -- Policy: System can insert insights for any user (backend service)
-CREATE POLICY "System can insert chat personality insights" ON chat_personality_insights FOR
-INSERT WITH CHECK (true);
+CREATE POLICY "System can insert chat personality insights"
+    ON chat_personality_insights
+    FOR INSERT
+    WITH CHECK (true);
+
 -- Add comment for documentation
 COMMENT ON TABLE chat_personality_insights IS 'Stores personality trait adjustments derived from chat conversation analysis. Used for reinforcement learning and personality profile updates.';
 COMMENT ON COLUMN chat_personality_insights.adjustments IS 'JSONB object containing Big Five trait adjustments: openness, conscientiousness, extraversion, agreeableness, neuroticism';
 COMMENT ON COLUMN chat_personality_insights.message_context IS 'First 200 characters of the user message that triggered the personality analysis';
+
 -- Grant permissions
-GRANT ALL ON chat_personality_insights TO authenticated,
-    service_role;
+GRANT ALL ON chat_personality_insights TO authenticated, service_role;
+
 -- ============================================================================
 -- SYSTEM TASKS TABLE
 -- ============================================================================
 -- Create system_tasks table for tracking scheduled task executions
 -- This table logs all automated background tasks for monitoring and debugging
+
 CREATE TABLE IF NOT EXISTS system_tasks (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    task_name TEXT NOT NULL,
-    -- Name of the task (e.g., 'personality_update', 'insights_cleanup', 'rl_training')
+    task_name TEXT NOT NULL, -- Name of the task (e.g., 'personality_update', 'insights_cleanup', 'rl_training')
     executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    status TEXT NOT NULL CHECK (
-        status IN ('completed', 'completed_with_errors', 'failed')
-    ),
+    status TEXT NOT NULL CHECK (status IN ('completed', 'completed_with_errors', 'failed')),
     users_processed INTEGER DEFAULT 0,
     successful_updates INTEGER DEFAULT 0,
     failed_updates INTEGER DEFAULT 0,
     records_processed INTEGER DEFAULT 0,
     error_message TEXT,
-    metadata JSONB,
-    -- Additional task-specific metadata
+    metadata JSONB, -- Additional task-specific metadata
     duration_seconds NUMERIC,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
 -- Indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_system_tasks_task_name ON system_tasks(task_name);
 CREATE INDEX IF NOT EXISTS idx_system_tasks_executed_at ON system_tasks(executed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_system_tasks_status ON system_tasks(status);
+
 -- Add Row Level Security
 ALTER TABLE system_tasks ENABLE ROW LEVEL SECURITY;
+
 -- Drop existing policy to avoid conflicts
 DROP POLICY IF EXISTS "Service role can manage system tasks" ON system_tasks;
+
 -- Policy: Only service role can read/write (admin access only)
-CREATE POLICY "Service role can manage system tasks" ON system_tasks FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role can manage system tasks"
+    ON system_tasks
+    FOR ALL
+    USING (auth.role() = 'service_role');
+
 -- Add comments for documentation
 COMMENT ON TABLE system_tasks IS 'Logs scheduled background task executions for system monitoring';
 COMMENT ON COLUMN system_tasks.task_name IS 'Identifier for the scheduled task (personality_update, insights_cleanup, rl_training, etc.)';
@@ -1015,22 +1046,683 @@ COMMENT ON COLUMN system_tasks.status IS 'Execution status: completed, completed
 COMMENT ON COLUMN system_tasks.users_processed IS 'Number of users processed in personality updates or RL training';
 COMMENT ON COLUMN system_tasks.records_processed IS 'Number of records processed in cleanup tasks';
 COMMENT ON COLUMN system_tasks.metadata IS 'Additional JSON metadata about the task execution (training stats, Q-values, etc.)';
+
 -- Grant permissions
 GRANT ALL ON system_tasks TO service_role;
 GRANT SELECT ON system_tasks TO authenticated;
+
+
+-- Complete User Memories Table with Enhanced Features
+-- Creates the user_memories table and adds enhanced metadata columns
+
+-- Create the base user_memories table if it doesn't exist
+CREATE TABLE IF NOT EXISTS user_memories (
+    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Add enhanced metadata columns for better memory management
+ALTER TABLE user_memories 
+ADD COLUMN IF NOT EXISTS importance TEXT CHECK (importance IN ('high', 'medium', 'low')) DEFAULT 'low',
+ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general',
+ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
+-- Add unique constraint to prevent duplicate memories per user
+-- Check if constraint exists first, then add if it doesn't
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'unique_user_memory_key'
+    ) THEN
+        ALTER TABLE user_memories ADD CONSTRAINT unique_user_memory_key UNIQUE (user_id, key);
+    END IF;
+END $$;
+
+-- Add trigger function to automatically update the updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger for automatic updated_at updates
+DROP TRIGGER IF EXISTS update_user_memories_updated_at ON user_memories;
+CREATE TRIGGER update_user_memories_updated_at
+BEFORE UPDATE ON user_memories
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Create indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_user_memories_user_id ON user_memories(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_memories_key ON user_memories(key);
+CREATE INDEX IF NOT EXISTS idx_user_memories_importance ON user_memories(importance);
+CREATE INDEX IF NOT EXISTS idx_user_memories_category ON user_memories(category);
+CREATE INDEX IF NOT EXISTS idx_user_memories_updated_at ON user_memories(updated_at);
+
+-- Add compound index for efficient session initialization queries
+CREATE INDEX IF NOT EXISTS idx_user_memories_user_importance_updated 
+ON user_memories(user_id, importance, updated_at DESC);
+
+-- Enable Row Level Security
+ALTER TABLE user_memories ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own memories" ON user_memories;
+DROP POLICY IF EXISTS "Users can insert their own memories" ON user_memories;
+DROP POLICY IF EXISTS "Users can update their own memories" ON user_memories;
+DROP POLICY IF EXISTS "Users can delete their own memories" ON user_memories;
+
+-- Create comprehensive RLS policies
+CREATE POLICY "Users can view their own memories"
+ON user_memories
+FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own memories"
+ON user_memories
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own memories"
+ON user_memories
+FOR UPDATE
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own memories"
+ON user_memories
+FOR DELETE
+USING (auth.uid() = user_id);
+
+-- Update existing memories to have appropriate importance based on key patterns
+-- This is a one-time update for existing data
+UPDATE user_memories 
+SET importance = 'high' 
+WHERE importance = 'low' 
+  AND (
+    key ILIKE '%character%' OR 
+    key ILIKE '%occupation%' OR 
+    key ILIKE '%age%' OR 
+    key ILIKE '%relationship%' OR
+    key ILIKE '%favorite_anime%' OR
+    key ILIKE '%favorite_game%' OR
+    key = 'personal_info'
+  );
+
+UPDATE user_memories 
+SET importance = 'medium'
+WHERE importance = 'low' 
+  AND (
+    key ILIKE 'favorite_%' OR 
+    key ILIKE 'hobby_%' OR 
+    key ILIKE '%goal%'
+  );
+
+-- Update categories based on key patterns
+UPDATE user_memories SET category = 'personal_fact' WHERE key IN ('occupation', 'age', 'personal_info');
+UPDATE user_memories SET category = 'character_reference' WHERE key ILIKE '%character%';
+UPDATE user_memories SET category = 'favorite' WHERE key ILIKE 'favorite_%';
+UPDATE user_memories SET category = 'hobby_interest' WHERE key ILIKE 'hobby_%';
+UPDATE user_memories SET category = 'relationship' WHERE key ILIKE 'relationship_%';
+UPDATE user_memories SET category = 'goal_aspiration' WHERE key ILIKE '%goal%';
+
+-- Add table and column comments for documentation
+COMMENT ON TABLE user_memories IS 'Stores key-value pairs of memories for each user, allowing the AI to recall past information across sessions.';
+COMMENT ON COLUMN user_memories.user_id IS 'The user this memory belongs to.';
+COMMENT ON COLUMN user_memories.key IS 'The category or topic of the memory (e.g., favorite_anime, favorite_character).';
+COMMENT ON COLUMN user_memories.value IS 'The content of the memory (e.g., Re:Zero, Natsuki Subaru).';
+COMMENT ON COLUMN user_memories.importance IS 'Priority level for memory retrieval: high (always loaded), medium (frequently loaded), low (rarely loaded)';
+COMMENT ON COLUMN user_memories.category IS 'Category of memory for organization and filtering';
+COMMENT ON COLUMN user_memories.metadata IS 'Additional metadata in JSON format (timestamps, source, etc.)';
+
+-- Grant appropriate permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON user_memories TO authenticated;
+GRANT USAGE ON SEQUENCE user_memories_id_seq TO authenticated;
+
+
+
+-- Video Entertainment Database Schema
+-- Add these tables to your Supabase database
+-- Video feedback table for like/dislike functionality
+CREATE TABLE IF NOT EXISTS video_feedback (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    video_id TEXT NOT NULL,
+    feedback_type TEXT NOT NULL CHECK (
+        feedback_type IN ('like', 'dislike', 'watch', 'skip', 'share')
+    ),
+    additional_data JSONB DEFAULT '{}',
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- User video history table
+CREATE TABLE IF NOT EXISTS user_video_history (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    video_id TEXT NOT NULL,
+    video_title TEXT,
+    channel_title TEXT,
+    category_name TEXT,
+    watch_time INTEGER DEFAULT 0,
+    -- in seconds
+    completion_rate FLOAT DEFAULT 0.0,
+    -- 0.0 to 1.0
+    watched_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- Video recommendations cache table
+CREATE TABLE IF NOT EXISTS video_recommendations_cache (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    recommendations JSONB NOT NULL,
+    personality_profile JSONB,
+    generated_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '8 hours'),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- Entertainment preferences table
+CREATE TABLE IF NOT EXISTS entertainment_preferences (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    video_preferences JSONB DEFAULT '{}',
+    music_preferences JSONB DEFAULT '{}',
+    gaming_preferences JSONB DEFAULT '{}',
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_video_feedback_user_id ON video_feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_video_feedback_video_id ON video_feedback(video_id);
+CREATE INDEX IF NOT EXISTS idx_video_feedback_feedback_type ON video_feedback(feedback_type);
+CREATE INDEX IF NOT EXISTS idx_video_feedback_timestamp ON video_feedback(timestamp);
+CREATE INDEX IF NOT EXISTS idx_user_video_history_user_id ON user_video_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_video_history_watched_at ON user_video_history(watched_at);
+CREATE INDEX IF NOT EXISTS idx_user_video_history_category ON user_video_history(category_name);
+CREATE INDEX IF NOT EXISTS idx_video_recommendations_user_id ON video_recommendations_cache(user_id);
+CREATE INDEX IF NOT EXISTS idx_video_recommendations_expires_at ON video_recommendations_cache(expires_at);
+CREATE INDEX IF NOT EXISTS idx_entertainment_preferences_user_id ON entertainment_preferences(user_id);
+-- Enable Row Level Security (RLS)
+ALTER TABLE video_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_video_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE video_recommendations_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE entertainment_preferences ENABLE ROW LEVEL SECURITY;
+-- Create RLS policies
+CREATE POLICY "Users can manage their own video feedback" ON video_feedback FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own video history" ON user_video_history FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own video recommendations" ON video_recommendations_cache FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own entertainment preferences" ON entertainment_preferences FOR ALL USING (auth.uid() = user_id);
+-- Functions for automatic cleanup
+CREATE OR REPLACE FUNCTION cleanup_expired_video_recommendations() RETURNS void AS $$ BEGIN
+DELETE FROM video_recommendations_cache
+WHERE expires_at < NOW();
+END;
+$$ LANGUAGE plpgsql;
+-- Function to update entertainment preferences based on feedback
+CREATE OR REPLACE FUNCTION update_entertainment_preferences() RETURNS TRIGGER AS $$ BEGIN -- Update video preferences based on feedback
+INSERT INTO entertainment_preferences (user_id, video_preferences, updated_at)
+VALUES (
+        NEW.user_id,
+        JSONB_BUILD_OBJECT(
+            'last_feedback',
+            NEW.feedback_type,
+            'last_feedback_time',
+            NEW.timestamp,
+            'total_feedback_count',
+            1
+        ),
+        NOW()
+    ) ON CONFLICT (user_id) DO
+UPDATE
+SET video_preferences = JSONB_SET(
+        entertainment_preferences.video_preferences,
+        '{total_feedback_count}',
+        TO_JSONB(
+            COALESCE(
+                (
+                    entertainment_preferences.video_preferences->>'total_feedback_count'
+                )::INTEGER,
+                0
+            ) + 1
+        )
+    ),
+    updated_at = NOW();
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+-- Create trigger for automatic preference updates
+CREATE TRIGGER trigger_update_entertainment_preferences
+AFTER
+INSERT ON video_feedback FOR EACH ROW EXECUTE FUNCTION update_entertainment_preferences();
+-- Create a cleanup job (run this periodically)
+-- SELECT cron.schedule('cleanup-video-recommendations', '0 */6 * * *', 'SELECT cleanup_expired_video_recommendations();');
+
 -- ============================================================================
--- FINAL SCHEMA SETUP COMPLETE
+-- BONDHU APP - MUSIC RECOMMENDATION SYSTEM SCHEMA
 -- ============================================================================
--- This comprehensive schema includes:
--- ✅ Core user profiles and authentication
--- ✅ Onboarding and personality assessment
--- ✅ Chat messages and conversation tracking
--- ✅ Entertainment recommendations system
--- ✅ User interactions and preferences
--- ✅ Chat personality insights for RL
--- ✅ System tasks tracking for automation
--- ✅ Comprehensive RLS security policies
--- ✅ Optimized indexes for performance
--- ✅ Utility functions for common operations
--- ✅ Views for easy data access
+-- This script adds the music-specific tables needed for the music recommendation
+-- and RL learning system. Run this AFTER the base entertainment schema.
 -- ============================================================================
+
+-- Music recommendations table
+CREATE TABLE IF NOT EXISTS music_recommendations (
+    id uuid default uuid_generate_v4() primary key,
+    user_id uuid references auth.users on delete cascade not null,
+    recommendation_id uuid references entertainment_recommendations on delete cascade,
+    
+    -- Spotify track information
+    spotify_track_id text not null,
+    track_name text not null,
+    artists text[] not null,
+    album_name text,
+    preview_url text,
+    spotify_url text not null,
+    
+    -- Genre categorization
+    genz_genre text not null,  -- GenZ-friendly genre name
+    spotify_genres text[],     -- Original Spotify genres
+    
+    -- Audio features (for RL learning)
+    energy numeric(5, 3) check (energy >= 0 AND energy <= 1),
+    valence numeric(5, 3) check (valence >= 0 AND valence <= 1),
+    danceability numeric(5, 3) check (danceability >= 0 AND danceability <= 1),
+    acousticness numeric(5, 3) check (acousticness >= 0 AND acousticness <= 1),
+    instrumentalness numeric(5, 3) check (instrumentalness >= 0 AND instrumentalness <= 1),
+    tempo numeric(6, 2),
+    
+    -- Metadata
+    duration_ms integer,
+    popularity integer check (popularity >= 0 AND popularity <= 100),
+    
+    -- Recommendation scoring
+    rl_score numeric(5, 3),
+    personality_match_score numeric(5, 3) check (
+        personality_match_score >= 0 AND personality_match_score <= 1
+    ),
+    
+    -- Timestamps
+    recommended_at timestamp with time zone default now(),
+    expires_at timestamp with time zone,
+    is_active boolean default true,
+    
+    -- Unique constraint to prevent duplicate recommendations
+    UNIQUE(user_id, spotify_track_id, recommended_at)
+);
+
+-- Music interactions table (track user feedback for RL)
+CREATE TABLE IF NOT EXISTS music_interactions (
+    id uuid default uuid_generate_v4() primary key,
+    user_id uuid references auth.users on delete cascade not null,
+    recommendation_id uuid references music_recommendations on delete cascade,
+    
+    -- Spotify track information
+    spotify_track_id text not null,
+    track_name text,
+    genz_genre text,
+    
+    -- Interaction type
+    interaction_type text not null check (
+        interaction_type in (
+            'like',
+            'dislike',
+            'play',          -- User clicked play on Spotify
+            'skip',
+            'save',          -- User saved to their library
+            'add_to_playlist',
+            'repeat',        -- User replayed the track
+            'share'
+        )
+    ),
+    
+    -- RL learning data
+    rl_reward numeric(5, 3),
+    q_value numeric(8, 5),
+    state_features text,  -- Serialized state for RL system
+    
+    -- Additional context
+    listen_duration_ms integer,
+    track_duration_ms integer,
+    completion_percentage numeric(5, 2),
+    time_to_action_seconds numeric(6, 2),
+    listening_context text,  -- e.g., 'workout', 'study', 'party'
+    
+    -- Personality state at interaction time
+    personality_snapshot jsonb,
+    
+    -- Timestamps
+    interacted_at timestamp with time zone default now(),
+    
+    -- Index for RL training queries
+    created_at timestamp with time zone default now()
+);
+
+-- Music genre preferences table (learned from history and interactions)
+CREATE TABLE IF NOT EXISTS music_genre_preferences (
+    id uuid default uuid_generate_v4() primary key,
+    user_id uuid references auth.users on delete cascade not null,
+    
+    -- Genre information
+    genz_genre text not null,
+    spotify_genres text[],
+    
+    -- Preference scoring
+    preference_score numeric(5, 3) default 0.5 check (
+        preference_score >= 0 AND preference_score <= 1
+    ),
+    avg_rl_reward numeric(5, 3),
+    interaction_count integer default 0,
+    positive_interactions integer default 0,
+    negative_interactions integer default 0,
+    
+    -- Learning metadata
+    learned_from text not null check (
+        learned_from in ('spotify_history', 'user_feedback', 'rl_learning', 'personality_analysis')
+    ),
+    confidence numeric(5, 3) default 0.5,
+    
+    -- Timestamps
+    first_learned_at timestamp with time zone default now(),
+    last_updated_at timestamp with time zone default now(),
+    
+    UNIQUE(user_id, genz_genre)
+);
+
+-- Music listening history (from Spotify)
+CREATE TABLE IF NOT EXISTS music_listening_history (
+    id uuid default uuid_generate_v4() primary key,
+    user_id uuid references auth.users on delete cascade not null,
+    
+    -- Spotify track information
+    spotify_track_id text not null,
+    track_name text not null,
+    artists text[] not null,
+    album_name text,
+    
+    -- Genre categorization
+    genz_genre text,
+    spotify_genres text[],
+    
+    -- Audio features (cached from Spotify)
+    energy numeric(5, 3),
+    valence numeric(5, 3),
+    danceability numeric(5, 3),
+    tempo numeric(6, 2),
+    
+    -- Metadata
+    duration_ms integer,
+    popularity integer,
+    
+    -- Listening context
+    played_at timestamp with time zone not null,
+    listen_duration_ms integer,
+    time_range text check (time_range in ('short_term', 'medium_term', 'long_term')),
+    
+    -- Timestamps
+    fetched_at timestamp with time zone default now(),
+    
+    -- Index for history queries
+    created_at timestamp with time zone default now()
+);
+
+-- RL model snapshots (for versioning and recovery)
+CREATE TABLE IF NOT EXISTS music_rl_models (
+    id uuid default uuid_generate_v4() primary key,
+    user_id uuid references auth.users on delete cascade not null,
+    
+    -- Model data
+    q_table jsonb not null,
+    genre_performance jsonb,
+    
+    -- Model parameters
+    learning_rate numeric(5, 3),
+    discount_factor numeric(5, 3),
+    epsilon numeric(5, 3),
+    
+    -- Training statistics
+    training_episodes integer default 0,
+    total_reward numeric(10, 3),
+    average_reward numeric(8, 5),
+    
+    -- Timestamps
+    created_at timestamp with time zone default now(),
+    is_active boolean default true
+);
+
+-- ============================================================================
+-- INDEXES FOR MUSIC TABLES
+-- ============================================================================
+
+-- Music recommendations indexes
+CREATE INDEX IF NOT EXISTS idx_music_recommendations_user_id ON music_recommendations(user_id);
+CREATE INDEX IF NOT EXISTS idx_music_recommendations_genre ON music_recommendations(genz_genre);
+CREATE INDEX IF NOT EXISTS idx_music_recommendations_active ON music_recommendations(is_active, recommended_at DESC);
+CREATE INDEX IF NOT EXISTS idx_music_recommendations_spotify_track ON music_recommendations(spotify_track_id);
+CREATE INDEX IF NOT EXISTS idx_music_recommendations_rl_score ON music_recommendations(rl_score DESC);
+
+-- Music interactions indexes
+CREATE INDEX IF NOT EXISTS idx_music_interactions_user_id ON music_interactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_music_interactions_recommendation_id ON music_interactions(recommendation_id);
+CREATE INDEX IF NOT EXISTS idx_music_interactions_type ON music_interactions(interaction_type);
+CREATE INDEX IF NOT EXISTS idx_music_interactions_genre ON music_interactions(genz_genre);
+CREATE INDEX IF NOT EXISTS idx_music_interactions_created_at ON music_interactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_music_interactions_spotify_track ON music_interactions(spotify_track_id);
+
+-- Music genre preferences indexes
+CREATE INDEX IF NOT EXISTS idx_music_genre_preferences_user_id ON music_genre_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_music_genre_preferences_genre ON music_genre_preferences(genz_genre);
+CREATE INDEX IF NOT EXISTS idx_music_genre_preferences_score ON music_genre_preferences(preference_score DESC);
+CREATE INDEX IF NOT EXISTS idx_music_genre_preferences_updated ON music_genre_preferences(last_updated_at DESC);
+
+-- Music listening history indexes
+CREATE INDEX IF NOT EXISTS idx_music_listening_history_user_id ON music_listening_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_music_listening_history_genre ON music_listening_history(genz_genre);
+CREATE INDEX IF NOT EXISTS idx_music_listening_history_played_at ON music_listening_history(played_at DESC);
+CREATE INDEX IF NOT EXISTS idx_music_listening_history_spotify_track ON music_listening_history(spotify_track_id);
+
+-- RL models indexes
+CREATE INDEX IF NOT EXISTS idx_music_rl_models_user_id ON music_rl_models(user_id);
+CREATE INDEX IF NOT EXISTS idx_music_rl_models_active ON music_rl_models(is_active, created_at DESC);
+
+-- ============================================================================
+-- ROW LEVEL SECURITY FOR MUSIC TABLES
+-- ============================================================================
+
+-- Enable RLS on music tables
+ALTER TABLE music_recommendations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE music_interactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE music_genre_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE music_listening_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE music_rl_models ENABLE ROW LEVEL SECURITY;
+
+-- Music recommendations policies
+CREATE POLICY "Users can view own music recommendations" 
+    ON music_recommendations FOR SELECT 
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own music recommendations" 
+    ON music_recommendations FOR ALL 
+    USING (auth.uid() = user_id) 
+    WITH CHECK (auth.uid() = user_id);
+
+-- Music interactions policies
+CREATE POLICY "Users can manage own music interactions" 
+    ON music_interactions FOR ALL 
+    USING (auth.uid() = user_id) 
+    WITH CHECK (auth.uid() = user_id);
+
+-- Music genre preferences policies
+CREATE POLICY "Users can manage own music genre preferences" 
+    ON music_genre_preferences FOR ALL 
+    USING (auth.uid() = user_id) 
+    WITH CHECK (auth.uid() = user_id);
+
+-- Music listening history policies
+CREATE POLICY "Users can manage own music listening history" 
+    ON music_listening_history FOR ALL 
+    USING (auth.uid() = user_id) 
+    WITH CHECK (auth.uid() = user_id);
+
+-- RL models policies
+CREATE POLICY "Users can manage own RL models" 
+    ON music_rl_models FOR ALL 
+    USING (auth.uid() = user_id) 
+    WITH CHECK (auth.uid() = user_id);
+
+-- ============================================================================
+-- FUNCTIONS FOR MUSIC SYSTEM
+-- ============================================================================
+
+-- Function to record music interaction and update RL data
+CREATE OR REPLACE FUNCTION public.record_music_interaction(
+    p_user_id UUID,
+    p_recommendation_id UUID,
+    p_spotify_track_id TEXT,
+    p_track_name TEXT,
+    p_genz_genre TEXT,
+    p_interaction_type TEXT,
+    p_rl_reward NUMERIC DEFAULT NULL,
+    p_listen_duration_ms INTEGER DEFAULT NULL,
+    p_track_duration_ms INTEGER DEFAULT NULL,
+    p_personality_snapshot JSONB DEFAULT NULL
+) RETURNS UUID AS $$
+DECLARE
+    interaction_id UUID;
+    completion_pct NUMERIC;
+BEGIN
+    -- Calculate completion percentage if duration data provided
+    IF p_listen_duration_ms IS NOT NULL AND p_track_duration_ms IS NOT NULL AND p_track_duration_ms > 0 THEN
+        completion_pct := (p_listen_duration_ms::NUMERIC / p_track_duration_ms::NUMERIC) * 100;
+    ELSE
+        completion_pct := NULL;
+    END IF;
+    
+    -- Insert interaction
+    INSERT INTO music_interactions (
+        user_id,
+        recommendation_id,
+        spotify_track_id,
+        track_name,
+        genz_genre,
+        interaction_type,
+        rl_reward,
+        listen_duration_ms,
+        track_duration_ms,
+        completion_percentage,
+        personality_snapshot
+    ) VALUES (
+        p_user_id,
+        p_recommendation_id,
+        p_spotify_track_id,
+        p_track_name,
+        p_genz_genre,
+        p_interaction_type,
+        p_rl_reward,
+        p_listen_duration_ms,
+        p_track_duration_ms,
+        completion_pct,
+        p_personality_snapshot
+    ) RETURNING id INTO interaction_id;
+    
+    -- Update genre preferences
+    INSERT INTO music_genre_preferences (
+        user_id,
+        genz_genre,
+        interaction_count,
+        positive_interactions,
+        negative_interactions,
+        avg_rl_reward,
+        learned_from,
+        last_updated_at
+    ) VALUES (
+        p_user_id,
+        p_genz_genre,
+        1,
+        CASE WHEN p_interaction_type IN ('like', 'play', 'save', 'repeat') THEN 1 ELSE 0 END,
+        CASE WHEN p_interaction_type IN ('dislike', 'skip') THEN 1 ELSE 0 END,
+        COALESCE(p_rl_reward, 0),
+        'user_feedback',
+        NOW()
+    )
+    ON CONFLICT (user_id, genz_genre) DO UPDATE SET
+        interaction_count = music_genre_preferences.interaction_count + 1,
+        positive_interactions = music_genre_preferences.positive_interactions + 
+            CASE WHEN p_interaction_type IN ('like', 'play', 'save', 'repeat') THEN 1 ELSE 0 END,
+        negative_interactions = music_genre_preferences.negative_interactions + 
+            CASE WHEN p_interaction_type IN ('dislike', 'skip') THEN 1 ELSE 0 END,
+        avg_rl_reward = (
+            (music_genre_preferences.avg_rl_reward * music_genre_preferences.interaction_count) + 
+            COALESCE(p_rl_reward, 0)
+        ) / (music_genre_preferences.interaction_count + 1),
+        preference_score = GREATEST(0, LEAST(1, 
+            0.5 + (
+                (music_genre_preferences.positive_interactions + 
+                 CASE WHEN p_interaction_type IN ('like', 'play', 'save', 'repeat') THEN 1 ELSE 0 END) - 
+                (music_genre_preferences.negative_interactions + 
+                 CASE WHEN p_interaction_type IN ('dislike', 'skip') THEN 1 ELSE 0 END)
+            )::NUMERIC / (music_genre_preferences.interaction_count + 1) * 0.3
+        )),
+        last_updated_at = NOW();
+    
+    RETURN interaction_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get top recommended genres for a user
+CREATE OR REPLACE FUNCTION public.get_top_music_genres(
+    p_user_id UUID,
+    p_limit INTEGER DEFAULT 5
+) RETURNS TABLE (
+    genz_genre TEXT,
+    preference_score NUMERIC,
+    interaction_count INTEGER,
+    avg_reward NUMERIC
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        mgp.genz_genre,
+        mgp.preference_score,
+        mgp.interaction_count,
+        mgp.avg_rl_reward
+    FROM music_genre_preferences mgp
+    WHERE mgp.user_id = p_user_id
+    ORDER BY mgp.preference_score DESC, mgp.interaction_count DESC
+    LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- SAMPLE DATA (OPTIONAL - FOR TESTING)
+-- ============================================================================
+
+-- This section can be used to insert sample genre preferences for testing
+-- COMMENT OUT IN PRODUCTION
+
+/*
+-- Sample GenZ genres
+INSERT INTO music_genre_preferences (user_id, genz_genre, preference_score, learned_from, confidence)
+SELECT 
+    auth.uid(),
+    genre,
+    0.5,
+    'personality_analysis',
+    0.3
+FROM unnest(ARRAY[
+    'Lo-fi Chill',
+    'Pop Anthems', 
+    'Indie Vibes',
+    'Hype Beats',
+    'R&B Feels'
+]) AS genre
+WHERE NOT EXISTS (
+    SELECT 1 FROM music_genre_preferences 
+    WHERE user_id = auth.uid() AND genz_genre = genre
+);
+*/

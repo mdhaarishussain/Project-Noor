@@ -5,12 +5,14 @@ Implements Q-learning for improving music suggestions based on user interactions
 
 import numpy as np
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 from collections import deque
 import asyncio
 
 from core.database.models import PersonalityTrait
+from core.rl.rl_storage import RLSupabaseStorage
 
 
 class MusicRecommendationRL:
@@ -72,6 +74,9 @@ class MusicRecommendationRL:
         
         # Genre-specific learning
         self.genre_performance = {}  # Track performance per genre
+        
+        # Supabase storage for persistence
+        self.storage = RLSupabaseStorage(user_id)
 
     async def process_feedback(self, music_data: Dict[str, Any], 
                              personality_profile: Dict[PersonalityTrait, float],
@@ -113,6 +118,16 @@ class MusicRecommendationRL:
                 'feedback_type': feedback_type,
                 'genre': genre
             }
+            
+            # Store interaction in Supabase
+            track_id = music_data.get('id', music_data.get('track_id', ''))
+            await self.storage.store_music_interaction(
+                track_id=track_id,
+                action=feedback_type,
+                reward=reward,
+                confidence=1.0,
+                track_features=music_data
+            )
             
             self.experience_buffer.append(experience)
             

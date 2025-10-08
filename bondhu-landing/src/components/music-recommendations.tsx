@@ -25,6 +25,7 @@ interface Song {
     name: string
     artists: string[]
     album: string
+    album_image?: string
     preview_url?: string
     external_url: string
     duration_ms: number
@@ -88,9 +89,63 @@ export default function MusicRecommendations({
     const [lastAutoRefresh, setLastAutoRefresh] = useState<{ morning?: string, noon?: string, afternoon?: string }>({})
     const [refreshDisabled, setRefreshDisabled] = useState(false)
 
-    // Fetch available genres on mount
+    // Load feedback state from localStorage on mount
+    useEffect(() => {
+        const savedFeedback = localStorage.getItem(`music_feedback_${userId}`)
+        if (savedFeedback) {
+            try {
+                setFeedbackState(JSON.parse(savedFeedback))
+            } catch (error) {
+                console.error('Error loading saved feedback:', error)
+            }
+        }
+    }, [userId])
+
+    // Save feedback state to localStorage whenever it changes
+    useEffect(() => {
+        if (Object.keys(feedbackState).length > 0) {
+            localStorage.setItem(`music_feedback_${userId}`, JSON.stringify(feedbackState))
+        }
+    }, [feedbackState, userId])
+
+    // Browser refresh detection and auto-recommendations
+    useEffect(() => {
+        const handlePageLoad = () => {
+            // Detect if this is a fresh page load (browser refresh)
+            const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
+            if (navigationEntry && navigationEntry.type === 'reload') {
+                // This is a browser refresh - fetch fresh recommendations
+                setTimeout(() => {
+                    if (selectedGenres.length > 0) {
+                        fetchRecommendations('browser_refresh')
+                        toast.success('🔄 Fresh recommendations loaded!')
+                    }
+                }, 1000) // Small delay to ensure other useEffects complete
+            }
+        }
+
+        // Check if page was refreshed
+        handlePageLoad()
+    }, [selectedGenres])
+
+    // Fetch available genres and check Spotify connection on mount
     useEffect(() => {
         fetchAvailableGenres()
+        checkSpotifyConnection()
+        
+        // Handle URL parameters after OAuth callback
+        const urlParams = new URLSearchParams(window.location.search)
+        if (urlParams.get('spotify_connected') === 'true') {
+            setSpotifyConnected(true)
+            toast.success('🎵 Spotify connected successfully!')
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname)
+        } else if (urlParams.get('spotify_error')) {
+            const error = urlParams.get('spotify_error')
+            toast.error(`Spotify connection failed: ${error}`)
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname)
+        }
     }, [])
 
     // Auto-select all 6 genres initially
@@ -114,11 +169,16 @@ export default function MusicRecommendations({
             const today = now.toDateString()
             const hour = now.getHours()
 
-            // Reset manual refresh count daily
+            // Reset manual refresh count daily at midnight
             const lastManualReset = localStorage.getItem(`music_manual_reset_${userId}`)
             if (lastManualReset !== today) {
                 setManualRefreshCount(0)
+                setRefreshDisabled(false)
                 localStorage.setItem(`music_manual_reset_${userId}`, today)
+                localStorage.removeItem(`music_manual_count_${userId}`)
+                if (lastManualReset) { // Only show toast if not first time
+                    toast.success('🌙 Daily refresh limit reset! (3 refreshes available)')
+                }
             }
 
             // Morning refresh (8-10 AM)
@@ -215,9 +275,9 @@ export default function MusicRecommendations({
         }
     }
 
-    const fetchRecommendations = async (type: 'manual' | 'auto' | 'initial' = 'initial') => {
+    const fetchRecommendations = async (type: 'manual' | 'auto' | 'initial' | 'browser_refresh' = 'initial') => {
 
-        // Check manual refresh limit
+        // Check manual refresh limit (but allow browser refreshes)
         if (type === 'manual' && manualRefreshCount >= 3) {
             toast.error('Daily manual refresh limit reached (3/3). Try again tomorrow!')
             return
@@ -225,13 +285,16 @@ export default function MusicRecommendations({
 
         setLoading(true)
         try {
+            // Generate unique refresh salt for each call to ensure fresh recommendations
+            const refreshSalt = Date.now() + Math.random() * 1000
+            
             const response = await apiClient.post(`/agents/music/recommendations/${userId}`, {
                 spotify_token: spotifyToken || undefined,
                 personality_profile: personalityProfile,
                 genres: selectedGenres,
                 songs_per_genre: 3,
                 use_history: Boolean(spotifyToken),
-                refresh_salt: Date.now()
+                refresh_salt: refreshSalt
             }) as { recommendations: GenreRecommendations }
 
             setRecommendations(response.recommendations)
@@ -244,7 +307,11 @@ export default function MusicRecommendations({
                 localStorage.setItem(`music_manual_count_${userId}`, newCount.toString())
                 toast.success(`🎵 Refreshed! (${newCount}/3 daily manual refreshes used)`)
             } else if (type === 'initial') {
-                toast.success(`Loaded ${Object.keys(response.recommendations).length} genres!`)
+                const mode = spotifyConnected ? 'personalized + history-based' : 'personality-only'
+                toast.success(`🎵 ${Object.keys(response.recommendations).length} genres loaded (${mode} mode)!`)
+            } else if (type === 'browser_refresh') {
+                const mode = spotifyConnected ? 'personalized + history' : 'personality-based'
+                toast.success(`🔄 Fresh ${mode} recommendations!`)
             }
         } catch (error: any) {
             console.error('Error fetching recommendations:', error)
@@ -272,6 +339,10 @@ export default function MusicRecommendations({
 
     const handleFeedback = async (song: Song, feedbackType: 'like' | 'dislike') => {
         try {
+            // Check if we're toggling off the same feedback
+            const currentFeedback = feedbackState[song.id]
+            const isToggleOff = currentFeedback === (feedbackType === 'like' ? 'liked' : 'disliked')
+
             await apiClient.post(`/agents/music/feedback/${userId}`, {
                 song_data: {
                     id: song.id,
@@ -282,13 +353,22 @@ export default function MusicRecommendations({
                     tempo: song.tempo,
                     danceability: song.danceability
                 },
-                feedback_type: feedbackType,
+                feedback_type: isToggleOff ? 'neutral' : feedbackType,
                 personality_profile: personalityProfile,
                 ...(spotifyToken ? { spotify_token: spotifyToken } : {})
             })
 
-            setFeedbackState(prev => ({ ...prev, [song.id]: feedbackType as 'liked' | 'disliked' }))
-            toast.success(`${feedbackType === 'like' ? '👍' : '👎'} Feedback recorded!`)
+            // Update state - null if toggling off, otherwise set the feedback
+            setFeedbackState(prev => ({ 
+                ...prev, 
+                [song.id]: isToggleOff ? null : (feedbackType as 'liked' | 'disliked')
+            }))
+            
+            if (isToggleOff) {
+                toast.success('🔄 Feedback removed!')
+            } else {
+                toast.success(`${feedbackType === 'like' ? '👍' : '👎'} Feedback recorded!`)
+            }
 
             // Refresh insights
             fetchRLInsights()
@@ -317,12 +397,48 @@ export default function MusicRecommendations({
         window.open(song.external_url, '_blank')
     }
 
+    const checkSpotifyConnection = async () => {
+        if (spotifyToken) {
+            setSpotifyConnected(true)
+            return
+        }
+
+        try {
+            // Check if user has stored Spotify tokens
+            const response = await apiClient.get(`/agents/music/status/${userId}`) as { 
+                connected: boolean
+                spotify_user_id?: string
+                connected_at?: string
+            }
+            
+            if (response.connected) {
+                setSpotifyConnected(true)
+                toast.success('🎵 Spotify connection restored!')
+            }
+        } catch (error) {
+            // No stored connection found, stay disconnected
+            console.log('No existing Spotify connection found')
+        }
+    }
+
     const connectSpotify = async () => {
         try {
             const response = await apiClient.get(`/agents/music/connect?user_id=${userId}`) as { auth_url: string }
             window.location.href = response.auth_url
         } catch (error: any) {
             toast.error(error.message || 'Failed to connect Spotify')
+        }
+    }
+
+    const disconnectSpotify = async () => {
+        try {
+            await apiClient.post(`/agents/music/disconnect/${userId}`)
+            setSpotifyConnected(false)
+            setRecommendations({})
+            setRLInsights(null)
+            toast.success('🎵 Spotify disconnected successfully')
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to disconnect Spotify')
         }
     }
 
@@ -389,6 +505,40 @@ export default function MusicRecommendations({
 
     return (
         <div className="space-y-6">
+            {/* Header with Spotify Connection Status */}
+            <Card>
+                <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                                <Music2 className="h-4 w-4 text-white" />
+                            </div>
+                            <div>
+                                <div className="font-semibold">
+                                    {spotifyToken ? 'Spotify Connected' : 'Personality-Only Mode'}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                    {spotifyToken 
+                                        ? 'Using your listening history for personalized recommendations'
+                                        : 'Using personality-based recommendations'
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        {spotifyConnected && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={disconnectSpotify}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                                Disconnect
+                            </Button>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Header Stats */}
             {rlInsights && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -437,14 +587,10 @@ export default function MusicRecommendations({
 
             {/* Main Content */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="recommendations">
                         <Music2 className="h-4 w-4 mr-2" />
                         Recommendations
-                    </TabsTrigger>
-                    <TabsTrigger value="genres">
-                        <TrendingUp className="h-4 w-4 mr-2" />
-                        Genres ({selectedGenres.length})
                     </TabsTrigger>
                     <TabsTrigger value="insights" onClick={fetchRLInsights}>
                         <BarChart3 className="h-4 w-4 mr-2" />
@@ -456,10 +602,19 @@ export default function MusicRecommendations({
                 <TabsContent value="recommendations" className="space-y-6 mt-6">
                     <div className="flex justify-between items-center">
                         <div>
-                            <h2 className="text-xl font-semibold">Your Music</h2>
-                            {!spotifyToken && (
+                            <div className="flex items-center gap-3 mb-2">
+                                <h2 className="text-xl font-semibold">Your Music</h2>
+                                <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    spotifyConnected 
+                                        ? 'bg-gradient-to-r from-green-100 to-green-50 text-green-800 border border-green-200' 
+                                        : 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200'
+                                }`}>
+                                    {spotifyConnected ? '🎵 Personalized + History' : '🧠 Personality-Based'}
+                                </div>
+                            </div>
+                            {!spotifyConnected && (
                                 <p className="text-sm text-muted-foreground">
-                                    Personality-based recommendations •
+                                    AI-powered suggestions based on your personality •
                                     <Button
                                         variant="link"
                                         size="sm"
@@ -468,6 +623,11 @@ export default function MusicRecommendations({
                                     >
                                         Connect Spotify for enhanced suggestions
                                     </Button>
+                                </p>
+                            )}
+                            {spotifyConnected && (
+                                <p className="text-sm text-muted-foreground">
+                                    Smart recommendations using your Spotify history and personality profile
                                 </p>
                             )}
                         </div>
@@ -536,8 +696,23 @@ export default function MusicRecommendations({
                                                 <GlowingEffect disabled={false} proximity={150} spread={40} blur={2} />
                                                 <CardContent className="p-4 relative z-10">
                                                     <div className="space-y-3">
+                                                        {/* Album Artwork */}
+                                                        {song.album_image && (
+                                                            <div className="flex justify-center">
+                                                                <img 
+                                                                    src={song.album_image} 
+                                                                    alt={`${song.album} album cover`}
+                                                                    className="w-24 h-24 rounded-md object-cover shadow-lg"
+                                                                    onError={(e) => {
+                                                                        const target = e.target as HTMLImageElement;
+                                                                        target.style.display = 'none';
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                        
                                                         {/* Song Info */}
-                                                        <div>
+                                                        <div className="text-center">
                                                             <h4 className="font-semibold text-sm line-clamp-1">
                                                                 {song.name}
                                                             </h4>
@@ -582,27 +757,33 @@ export default function MusicRecommendations({
                                                                 size="sm"
                                                                 variant={feedbackState[song.id] === 'liked' ? 'default' : 'outline'}
                                                                 onClick={() => handleFeedback(song, 'like')}
-                                                                disabled={!!feedbackState[song.id]}
-                                                                className="flex-1"
+                                                                className={`flex-1 transition-all duration-200 ${
+                                                                    feedbackState[song.id] === 'liked' 
+                                                                        ? 'bg-green-600 hover:bg-green-700 text-white shadow-md scale-95 border-green-600' 
+                                                                        : 'hover:bg-green-50 hover:text-green-600 hover:border-green-300 hover:scale-105'
+                                                                }`}
                                                             >
-                                                                <ThumbsUp className="h-3 w-3" />
+                                                                <ThumbsUp className={`h-3 w-3 ${feedbackState[song.id] === 'liked' ? 'fill-current' : ''}`} />
                                                             </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant={feedbackState[song.id] === 'disliked' ? 'destructive' : 'outline'}
                                                                 onClick={() => handleFeedback(song, 'dislike')}
-                                                                disabled={!!feedbackState[song.id]}
-                                                                className="flex-1"
+                                                                className={`flex-1 transition-all duration-200 ${
+                                                                    feedbackState[song.id] === 'disliked' 
+                                                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-md scale-95 border-red-600' 
+                                                                        : 'hover:bg-red-50 hover:text-red-600 hover:border-red-300 hover:scale-105'
+                                                                }`}
                                                             >
-                                                                <ThumbsDown className="h-3 w-3" />
+                                                                <ThumbsDown className={`h-3 w-3 ${feedbackState[song.id] === 'disliked' ? 'fill-current' : ''}`} />
                                                             </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant="default"
                                                                 onClick={() => handlePlay(song)}
-                                                                className="flex-1 bg-green-600 hover:bg-green-700"
+                                                                className="flex-1 bg-blue-600 hover:bg-blue-700 hover:scale-105 transition-all duration-200 active:scale-95"
                                                             >
-                                                                <Play className="h-3 w-3" />
+                                                                <Play className="h-3 w-3 fill-current" />
                                                             </Button>
                                                         </div>
                                                     </div>
@@ -616,70 +797,84 @@ export default function MusicRecommendations({
                     )}
                 </TabsContent>
 
-                {/* Genres Tab */}
-                <TabsContent value="genres" className="space-y-4 mt-6">
-                    <Alert>
-                        <Info className="h-4 w-4" />
-                        <AlertDescription>
-                            Select 3-6 genres to get personalized recommendations.
-                            More selections = more variety!
-                        </AlertDescription>
-                    </Alert>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                        {availableGenres.map(genre => (
-                            <Button
-                                key={genre}
-                                variant={selectedGenres.includes(genre) ? 'default' : 'outline'}
-                                onClick={() => toggleGenre(genre)}
-                                className="h-auto py-3 text-left justify-start"
-                            >
-                                <div className="flex items-center space-x-2">
-                                    {selectedGenres.includes(genre) && (
-                                        <Heart className="h-4 w-4" />
-                                    )}
-                                    <span className="text-sm">{genre}</span>
-                                </div>
-                            </Button>
-                        ))}
-                    </div>
-
-                    <Button onClick={() => fetchRecommendations('manual')} className="w-full" disabled={selectedGenres.length === 0}>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Get Recommendations for {selectedGenres.length} Genres
-                    </Button>
-                </TabsContent>
 
                 {/* Insights Tab */}
                 <TabsContent value="insights" className="space-y-6 mt-6">
                     {rlInsights ? (
                         <>
-                            {/* Learning Progress */}
+                            {/* Session Summary */}
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Learning Progress</CardTitle>
+                                    <CardTitle>This Session</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <div className="text-sm text-muted-foreground">Training Episodes</div>
-                                            <div className="text-2xl font-bold">{rlInsights.training_episodes}</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-sm text-muted-foreground">Average Reward</div>
-                                            <div className="text-2xl font-bold">
-                                                {rlInsights.average_reward.toFixed(2)}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-green-600">
+                                                {Object.values(feedbackState).filter(f => f === 'liked').length}
                                             </div>
+                                            <div className="text-sm text-muted-foreground">Songs Liked</div>
                                         </div>
-                                        <div>
-                                            <div className="text-sm text-muted-foreground">Exploration Rate</div>
-                                            <div className="text-2xl font-bold">
-                                                {(rlInsights.epsilon * 100).toFixed(0)}%
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-red-600">
+                                                {Object.values(feedbackState).filter(f => f === 'disliked').length}
                                             </div>
+                                            <div className="text-sm text-muted-foreground">Songs Disliked</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-blue-600">
+                                                {rlInsights.training_episodes}
+                                            </div>
+                                            <div className="text-sm text-muted-foreground">Total Interactions</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-purple-600">
+                                                {(rlInsights.average_reward * 100).toFixed(0)}%
+                                            </div>
+                                            <div className="text-sm text-muted-foreground">Match Score</div>
                                         </div>
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* Recently Liked Songs */}
+                            {Object.values(feedbackState).filter(f => f === 'liked').length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Recently Liked Songs</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            {Object.keys(recommendations).map(genre => 
+                                                recommendations[genre]
+                                                    .filter(song => feedbackState[song.id] === 'liked')
+                                                    .slice(0, 5) // Show max 5 recent likes
+                                                    .map(song => (
+                                                        <div key={song.id} className="flex items-center space-x-3 p-2 rounded-lg bg-green-50 dark:bg-green-950">
+                                                            {song.album_image && (
+                                                                <img 
+                                                                    src={song.album_image} 
+                                                                    alt={song.album}
+                                                                    className="w-12 h-12 rounded object-cover"
+                                                                />
+                                                            )}
+                                                            <div className="flex-1">
+                                                                <div className="font-medium text-sm">{song.name}</div>
+                                                                <div className="text-xs text-muted-foreground">
+                                                                    {song.artists.join(', ')} • {song.genz_genre}
+                                                                </div>
+                                                            </div>
+                                                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                                                {(song.personality_match * 100).toFixed(0)}% match
+                                                            </Badge>
+                                                        </div>
+                                                    ))
+                                            ).flat()}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Best Genres */}
                             <Card>
@@ -704,6 +899,45 @@ export default function MusicRecommendations({
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Learning Progress */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>AI Learning Progress</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="text-center">
+                                            <div className="text-sm text-muted-foreground">Exploration Rate</div>
+                                            <div className="text-xl font-bold">
+                                                {(rlInsights.epsilon * 100).toFixed(0)}%
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                                {rlInsights.epsilon > 0.3 ? 'Discovering new music' : 'Refining preferences'}
+                                            </div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-sm text-muted-foreground">Learning Quality</div>
+                                            <div className="text-xl font-bold">
+                                                {rlInsights.average_reward > 0.5 ? 'Excellent' : 
+                                                 rlInsights.average_reward > 0.2 ? 'Good' : 'Learning'}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                                Based on your feedback patterns
+                                            </div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-sm text-muted-foreground">Recommendation Accuracy</div>
+                                            <div className="text-xl font-bold">
+                                                {(rlInsights.average_reward * 100).toFixed(0)}%
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                                Improving with each interaction
+                                            </div>
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>

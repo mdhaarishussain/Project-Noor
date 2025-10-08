@@ -219,6 +219,142 @@ class SupabaseClient:
             logger.error(f"Error fetching agent analysis history for user {user_id}: {e}")
             return []
 
+    # Spotify OAuth methods
+    async def store_spotify_tokens(
+        self,
+        user_id: str,
+        access_token: str,
+        refresh_token: str,
+        expires_at: datetime,
+        user_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Store Spotify OAuth tokens and user data for a user.
+        
+        Args:
+            user_id: User's UUID
+            access_token: Spotify access token
+            refresh_token: Spotify refresh token
+            expires_at: Token expiration datetime
+            user_data: Optional Spotify user profile data
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            update_data = {
+                'spotify_access_token': access_token,
+                'spotify_refresh_token': refresh_token,
+                'spotify_token_expires_at': expires_at.isoformat(),
+                'spotify_connected_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            
+            if user_data:
+                update_data.update({
+                    'spotify_user_id': user_data.get('id'),
+                    'spotify_user_email': user_data.get('email')
+                })
+            
+            result = self.supabase.table('profiles').update(update_data).eq('id', user_id).execute()
+            
+            return len(result.data) > 0
+            
+        except Exception as e:
+            logger.error(f"Error storing Spotify tokens for user {user_id}: {e}")
+            return False
+
+    async def get_spotify_tokens(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve Spotify OAuth tokens for a user.
+        
+        Args:
+            user_id: User's UUID
+            
+        Returns:
+            Dictionary with token data or None if not found
+        """
+        try:
+            response = self.supabase.table('profiles').select(
+                'spotify_access_token, spotify_refresh_token, spotify_token_expires_at, '
+                'spotify_user_id, spotify_user_email, spotify_connected_at'
+            ).eq('id', user_id).execute()
+            
+            if response.data and len(response.data) > 0:
+                row = response.data[0]
+                if row.get('spotify_access_token'):
+                    return {
+                        'access_token': row['spotify_access_token'],
+                        'refresh_token': row['spotify_refresh_token'],
+                        'expires_at': row['spotify_token_expires_at'],
+                        'spotify_user_id': row['spotify_user_id'],
+                        'spotify_user_email': row['spotify_user_email'],
+                        'connected_at': row['spotify_connected_at']
+                    }
+                    
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching Spotify tokens for user {user_id}: {e}")
+            return None
+
+    async def disconnect_spotify(self, user_id: str) -> bool:
+        """
+        Clear Spotify OAuth tokens and connection data for a user.
+        
+        Args:
+            user_id: User's UUID
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            result = self.supabase.table('profiles').update({
+                'spotify_access_token': None,
+                'spotify_refresh_token': None,
+                'spotify_token_expires_at': None,
+                'spotify_user_id': None,
+                'spotify_user_email': None,
+                'spotify_connected_at': None,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('id', user_id).execute()
+            
+            return len(result.data) > 0
+            
+        except Exception as e:
+            logger.error(f"Error disconnecting Spotify for user {user_id}: {e}")
+            return False
+
+    async def update_spotify_tokens(
+        self,
+        user_id: str,
+        access_token: str,
+        expires_at: datetime
+    ) -> bool:
+        """
+        Update Spotify access token after refresh.
+        
+        Args:
+            user_id: User's UUID
+            access_token: New access token
+            expires_at: New expiration datetime
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            result = self.supabase.table('profiles').update({
+                'spotify_access_token': access_token,
+                'spotify_token_expires_at': expires_at.isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('id', user_id).execute()
+            
+            return len(result.data) > 0
+            
+        except Exception as e:
+            logger.error(f"Error updating Spotify tokens for user {user_id}: {e}")
+            return False
+
 
 # Global client instance
 _supabase_client: Optional[SupabaseClient] = None

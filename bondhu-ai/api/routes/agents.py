@@ -144,15 +144,17 @@ async def handle_spotify_callback(
             # Store integration status in database (placeholder)
             # await update_integration_status(user_id, "spotify", True)
             
-            # Redirect to frontend success page
+            # Redirect to entertainment page to stay in context
+            frontend = get_config().frontend_url
             return RedirectResponse(
-                url=f"http://localhost:3000/dashboard?spotify_connected=true",
+                url=f"{frontend}/entertainment?spotify_connected=true",
                 status_code=status.HTTP_302_FOUND
             )
         else:
-            # Redirect to frontend error page
+            # Redirect to entertainment page with error
+            frontend = get_config().frontend_url
             return RedirectResponse(
-                url=f"http://localhost:3000/dashboard?spotify_error=auth_failed",
+                url=f"{frontend}/entertainment?spotify_error=auth_failed",
                 status_code=status.HTTP_302_FOUND
             )
         
@@ -160,9 +162,56 @@ async def handle_spotify_callback(
         raise
     except Exception as e:
         logging.error(f"Error handling Spotify callback: {e}")
+        frontend = get_config().frontend_url
         return RedirectResponse(
-            url=f"http://localhost:3000/dashboard?spotify_error=callback_failed",
+            url=f"{frontend}/entertainment?spotify_error=callback_failed",
             status_code=status.HTTP_302_FOUND
+        )
+
+@agents_router.get("/music/status/{user_id}")
+async def get_spotify_status(user_id: str) -> JSONResponse:
+    """
+    Check if user has a valid Spotify connection.
+    
+    Args:
+        user_id: User ID to check
+        
+    Returns:
+        Connection status and details
+    """
+    try:
+        from core.database.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+        
+        token_data = await supabase.get_spotify_tokens(user_id)
+        
+        if token_data and token_data.get('access_token'):
+            # Check if token is still valid
+            if token_data['expires_at']:
+                from datetime import datetime
+                expires_at = datetime.fromisoformat(token_data['expires_at'].replace('Z', '+00:00'))
+                if expires_at > datetime.utcnow():
+                    return JSONResponse(
+                        status_code=status.HTTP_200_OK,
+                        content={
+                            "connected": True,
+                            "spotify_user_id": token_data.get('spotify_user_id'),
+                            "spotify_user_email": token_data.get('spotify_user_email'),
+                            "connected_at": token_data.get('connected_at'),
+                            "expires_at": token_data.get('expires_at')
+                        }
+                    )
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"connected": False}
+        )
+        
+    except Exception as e:
+        logging.error(f"Error checking Spotify status for user {user_id}: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"connected": False}
         )
 
 @agents_router.post("/music/disconnect/{user_id}")
@@ -177,19 +226,30 @@ async def disconnect_spotify(user_id: str) -> JSONResponse:
         Disconnection confirmation
     """
     try:
-        # Remove stored Spotify tokens (placeholder)
-        # await remove_spotify_tokens(user_id)
+        from core.database.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
         
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "message": "Spotify disconnected successfully",
-                "user_id": user_id,
-                "service": "spotify",
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        )
+        # Remove stored Spotify tokens
+        success = await supabase.disconnect_spotify(user_id)
         
+        if success:
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={
+                    "message": "Spotify disconnected successfully",
+                    "user_id": user_id,
+                    "service": "spotify",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to disconnect Spotify"
+            )
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error disconnecting Spotify: {e}")
         raise HTTPException(
@@ -310,33 +370,56 @@ async def get_music_recommendations(
             except ValueError:
                 logging.warning(f"Invalid personality trait: {trait_name}")
         
-        # Create music agent (will use user token if provided, else app credentials)
+        # Create music agent
         music_agent = MusicIntelligenceAgent(user_id=user_id, spotify_token=spotify_token)
 
-        # If no token, first attempt real Spotify recommendations using app credentials
-        recommendations = await music_agent.get_recommendations_by_genre(
-            personality_profile=profile,
-            genres=genres,
-            songs_per_genre=songs_per_genre,
-            use_history=bool(spotify_token) and use_history,
-            refresh_salt=refresh_salt
-        )
-
-        # Fallback to persona-only placeholders if nothing returned
-        if not recommendations:
-            # If no token, try to fetch personality from DB if not provided
+        # MODE 1: WITH SPOTIFY LOGIN - Personalized + History-based recommendations
+        if spotify_token:
+            logging.info(f"Generating personalized+history recommendations for user {user_id}")
+            recommendations = await music_agent.get_recommendations_by_genre(
+                personality_profile=profile,
+                genres=genres,
+                songs_per_genre=songs_per_genre,
+                use_history=True,  # Always use history when token is available
+                refresh_salt=refresh_salt
+            )
+        
+        # MODE 2: WITHOUT SPOTIFY LOGIN - Personality-only recommendations
+        else:
+            logging.info(f"Generating personality-only recommendations for user {user_id}")
+            # Ensure we have personality profile for personality-only mode
             if not personality_profile:
                 try:
-                    from core.database.supabase_client import SupabaseClient
-                    supabase = SupabaseClient()
-                    pdata = await supabase.get_user_personality(user_id)
-                    if pdata and pdata.get('scores'):
-                        personality_profile = pdata['scores']
-                except Exception:
-                    pass
+                    from core.database.supabase_client import get_supabase_client
+                    supabase = get_supabase_client()
+                    # Try to get personality from database
+                    profile_result = await supabase.supabase.table('profiles').select('personality_openness, personality_conscientiousness, personality_extraversion, personality_agreeableness, personality_neuroticism').eq('id', user_id).single().execute()
+                    if profile_result.data:
+                        profile = {}
+                        for trait_name in ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism']:
+                            score = profile_result.data.get(f'personality_{trait_name}')
+                            if score is not None:
+                                try:
+                                    trait_enum = PersonalityTrait(trait_name.upper())
+                                    profile[trait_enum] = float(score)
+                                except ValueError:
+                                    continue
+                        if profile:
+                            personality_profile = profile
+                except Exception as e:
+                    logging.warning(f"Could not load personality from database: {e}")
+                    # Use default balanced personality if none found
+                    personality_profile = {
+                        PersonalityTrait.OPENNESS: 50.0,
+                        PersonalityTrait.CONSCIENTIOUSNESS: 50.0,
+                        PersonalityTrait.EXTRAVERSION: 50.0,
+                        PersonalityTrait.AGREEABLENESS: 50.0,
+                        PersonalityTrait.NEUROTICISM: 50.0,
+                    }
 
+            # Generate personality-only recommendations
             recommendations = await music_agent.get_persona_only_recommendations(
-                personality_profile=profile,
+                personality_profile=personality_profile,
                 genres=genres,
                 songs_per_genre=songs_per_genre,
                 refresh_salt=refresh_salt
