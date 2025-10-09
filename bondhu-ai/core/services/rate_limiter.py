@@ -1,6 +1,7 @@
 """
-Rate limiting utilities for external API calls.
+Rate limiting utilities for external API calls and user-level rate limiting.
 Handles rate limiting for Spotify API and other services to ensure we stay within limits.
+Updated to support 500-1000 concurrent users with user-level rate limiting (100 req/min per user).
 """
 
 import time
@@ -205,16 +206,43 @@ class SpotifyRateLimiter:
                 
             except Exception as e:
                 last_exception = e
-                
-                # Check if it's a rate limit error
-                if "429" in str(e) or "rate limit" in str(e).lower():
+
+                # Try to extract richer error details (status codes, response body) when available
+                status = None
+                resp_text = None
+                try:
+                    # spotipy.SpotifyException uses .http_status and .msg in some versions
+                    status = getattr(e, 'http_status', None) or getattr(e, 'status_code', None)
+                    # Some exceptions carry a response or msg attribute with content
+                    possible_resp = getattr(e, 'response', None) or getattr(e, 'msg', None)
+                    if possible_resp is not None:
+                        # If it's a requests.Response-like object
+                        if hasattr(possible_resp, 'text'):
+                            resp_text = possible_resp.text
+                        else:
+                            resp_text = str(possible_resp)
+                except Exception:
+                    # Best-effort only; don't fail on logging
+                    status = None
+                    resp_text = None
+
+                # Check if it's a rate limit error and backoff if so
+                if status and str(status) == '429' or '429' in str(e) or 'rate limit' in str(e).lower():
                     wait_time = (2 ** attempt) * 1.0  # Exponential backoff
                     logger.warning(f"Rate limited on {endpoint}, waiting {wait_time}s (attempt {attempt + 1})")
                     await asyncio.sleep(wait_time)
                     continue
-                
-                # For other errors, log and retry with shorter wait
-                logger.warning(f"API error on {endpoint}: {e} (attempt {attempt + 1})")
+
+                # For other errors, include richer context in logs and retry if attempts remain
+                extra = ''
+                if status:
+                    extra += f" http_status={status}"
+                if resp_text:
+                    # Truncate very long responses for safety
+                    truncated = (resp_text[:1000] + '...') if len(resp_text) > 1000 else resp_text
+                    extra += f" response_body={truncated}"
+
+                logger.warning(f"API error on {endpoint}: {e}{extra} (attempt {attempt + 1})")
                 if attempt < max_retries:
                     await asyncio.sleep(0.5 * (attempt + 1))
         
@@ -308,9 +336,201 @@ class CacheManager:
         }
 
 
-# Global instances for the application
-spotify_rate_limiter = SpotifyRateLimiter()
-spotify_cache = CacheManager(default_ttl=300)  # 5 minutes for most API calls
 
-# Longer cache for user data that changes less frequently
-user_data_cache = CacheManager(default_ttl=1800)  # 30 minutes for user profiles, top tracks, etc.
+class UserRateLimiter:
+    """
+    Per-user rate limiter for API endpoints.
+    Supports 500-1000 concurrent users with 100 requests/minute per user limit.
+    Uses sliding window counter with Redis for distributed deployments.
+    """
+    
+    def __init__(self, requests_per_minute: int = 100, window_seconds: int = 60):
+        """
+        Initialize user-level rate limiter.
+        
+        Args:
+            requests_per_minute: Max requests per user per minute (spec: 100)
+            window_seconds: Time window for counting requests
+        """
+        self.requests_per_minute = requests_per_minute
+        self.window_seconds = window_seconds
+        
+        # Try to use Redis, fall back to in-memory
+        try:
+            from core.services.redis_cache import user_data_cache
+            self.cache = user_data_cache
+            self.use_redis = True
+            logger.info(f"UserRateLimiter initialized with Redis (limit: {requests_per_minute} req/min)")
+        except Exception as e:
+            logger.warning(f"Redis not available for rate limiting, using in-memory: {e}")
+            self.cache = {}
+            self.use_redis = False
+    
+    async def check_rate_limit(self, user_id: str) -> tuple[bool, Optional[int]]:
+        """
+        Check if user is within rate limit.
+        
+        Args:
+            user_id: User identifier
+            
+        Returns:
+            Tuple of (is_allowed, retry_after_seconds)
+        """
+        try:
+            now = time.time()
+            window_start = now - self.window_seconds
+            
+            if self.use_redis:
+                # Redis-based sliding window
+                key_prefix = f"user_rate_limit:{user_id}"
+                
+                # Get current count
+                current_count = self.cache.get(key_prefix, user_id=user_id) or 0
+                
+                if current_count >= self.requests_per_minute:
+                    # Get TTL to tell user when they can retry
+                    ttl = self.cache.get_ttl(key_prefix, user_id=user_id)
+                    retry_after = max(1, ttl) if ttl > 0 else self.window_seconds
+                    return False, retry_after
+                
+                # Increment counter
+                new_count = self.cache.increment(key_prefix, 1, user_id=user_id)
+                
+                # Set expiry on first request in window
+                if new_count == 1:
+                    self.cache.set(key_prefix, 1, ttl=self.window_seconds, user_id=user_id)
+                
+                return True, None
+                
+            else:
+                # In-memory fallback (not recommended for multi-instance)
+                if user_id not in self.cache:
+                    self.cache[user_id] = deque()
+                
+                user_requests = self.cache[user_id]
+                
+                # Remove old requests outside window
+                while user_requests and user_requests[0] < window_start:
+                    user_requests.popleft()
+                
+                if len(user_requests) >= self.requests_per_minute:
+                    # Calculate retry_after based on oldest request
+                    retry_after = int(self.window_seconds - (now - user_requests[0]))
+                    return False, max(1, retry_after)
+                
+                # Add current request
+                user_requests.append(now)
+                return True, None
+                
+        except Exception as e:
+            logger.error(f"Rate limit check error for user {user_id}: {e}")
+            # Fail open (allow request) on errors
+            return True, None
+    
+    async def acquire(self, user_id: str, timeout: float = 5.0) -> bool:
+        """
+        Acquire permission for user to make request (with retry).
+        
+        Args:
+            user_id: User identifier
+            timeout: Max time to wait
+            
+        Returns:
+            True if permission granted
+        """
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            allowed, retry_after = await self.check_rate_limit(user_id)
+            
+            if allowed:
+                return True
+            
+            # Wait before retry
+            if retry_after:
+                wait_time = min(retry_after, timeout - (time.time() - start_time))
+                if wait_time > 0:
+                    await asyncio.sleep(wait_time)
+            else:
+                await asyncio.sleep(0.5)
+        
+        logger.warning(f"User {user_id} rate limit timeout after {timeout}s")
+        return False
+    
+    def get_stats(self, user_id: str) -> Dict[str, Any]:
+        """Get rate limit stats for a user."""
+        try:
+            if self.use_redis:
+                key_prefix = f"user_rate_limit:{user_id}"
+                current_count = self.cache.get(key_prefix, user_id=user_id) or 0
+                ttl = self.cache.get_ttl(key_prefix, user_id=user_id)
+                
+                return {
+                    "user_id": user_id,
+                    "current_requests": current_count,
+                    "limit": self.requests_per_minute,
+                    "window_seconds": self.window_seconds,
+                    "reset_in_seconds": max(0, ttl) if ttl > 0 else 0,
+                    "percentage_used": round((current_count / self.requests_per_minute) * 100, 1)
+                }
+            else:
+                user_requests = self.cache.get(user_id, deque())
+                now = time.time()
+                window_start = now - self.window_seconds
+                
+                # Count recent requests
+                recent_count = sum(1 for req_time in user_requests if req_time >= window_start)
+                
+                return {
+                    "user_id": user_id,
+                    "current_requests": recent_count,
+                    "limit": self.requests_per_minute,
+                    "window_seconds": self.window_seconds,
+                    "percentage_used": round((recent_count / self.requests_per_minute) * 100, 1)
+                }
+        except Exception as e:
+            logger.error(f"Failed to get rate limit stats for {user_id}: {e}")
+            return {"error": str(e)}
+
+
+# Global instances for the application
+
+# Spotify rate limiter (endpoint-specific)
+spotify_rate_limiter = SpotifyRateLimiter()
+
+# User-level rate limiter (100 req/min per user, supports 500-1000 users)
+user_rate_limiter = UserRateLimiter(requests_per_minute=100)
+
+# Import Redis cache instances (replaces old CacheManager)
+try:
+    from core.services.redis_cache import (
+        recommendations_cache,
+        audio_features_cache, 
+        api_cache,
+        user_data_cache,
+        RECOMMENDATIONS_TTL,
+        AUDIO_FEATURES_TTL,
+        API_CACHE_TTL,
+        USER_DATA_TTL
+    )
+    
+    # Legacy aliases for backward compatibility
+    spotify_cache = audio_features_cache  # Maps to 7-day TTL Redis cache
+    
+    logger.info("Using Redis-based caching (24h recommendations, 7d audio features, 6h API responses)")
+    
+except ImportError as e:
+    logger.warning(f"Redis cache not available, falling back to in-memory: {e}")
+    
+    # Fallback to in-memory CacheManager (development only)
+    spotify_cache = CacheManager(default_ttl=300)
+    user_data_cache = CacheManager(default_ttl=1800)
+    recommendations_cache = CacheManager(default_ttl=86400)
+    audio_features_cache = CacheManager(default_ttl=604800)
+    api_cache = CacheManager(default_ttl=21600)
+    
+    # TTL constants
+    RECOMMENDATIONS_TTL = 86400
+    AUDIO_FEATURES_TTL = 604800
+    API_CACHE_TTL = 21600
+    USER_DATA_TTL = 1800

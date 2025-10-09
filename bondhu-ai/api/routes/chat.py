@@ -1,12 +1,14 @@
 """
 Chat API endpoints for Bondhu AI conversational interface.
 Integrates personality context with LLM for personalized responses.
+Enhanced with music recommendations on session initialization per spec.
 """
 
 import asyncio
 import logging
 import uuid
 import json
+import time
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -354,39 +356,121 @@ async def get_chat_history(
 
 
 @router.post("/session/initialize", response_model=APIResponse) 
-async def initialize_chat_session(user_id: str) -> APIResponse:
+async def initialize_chat_session(user_id: str, spotify_token: Optional[str] = None) -> APIResponse:
     """
-    Initialize a new chat session with important user context.
-    This endpoint should be called when starting a new conversation
-    to ensure the AI has access to important past information.
+    Initialize a new chat session and return music recommendations.
+    Per spec: Returns full recommendations (50 tracks) on every session init/refresh.
+    
+    This endpoint:
+    1. Clears previous chat history (fresh session)
+    2. Generates personalized music recommendations (200-500 candidates → top 50)
+    3. Uses top 50 listening history + personality profile
+    4. Applies cold start strategy based on account age
+    5. Caches recommendations (24h TTL)
+    6. Returns comprehensive recommendation data
     
     Args:
         user_id: User ID to initialize session for
+        spotify_token: Optional Spotify OAuth token for enhanced recommendations
         
     Returns:
-        Session context and important memories
+        APIResponse with full recommendations data
     """
     try:
-        logger.info(f"Clearing chat history for user {user_id}")
+        logger.info(f"Initializing chat session for user {user_id}")
+        start_time = time.time()
         
         supabase = get_supabase_client()
         
-        # Delete all chat messages
-        supabase.supabase.table('chat_messages') \
-            .delete() \
-            .eq('user_id', user_id) \
-            .execute()
+        # Clear chat history (fresh session)
+        try:
+            supabase.supabase.table('chat_messages') \
+                .delete() \
+                .eq('user_id', user_id) \
+                .execute()
+            
+            # Invalidate chat cache
+            invalidate_user_chat_cache(user_id)
+            
+            logger.info(f"Chat history cleared for user {user_id}")
+        except Exception as clear_error:
+            logger.warning(f"Failed to clear chat history: {clear_error}")
+            # Continue even if clearing fails
         
-        # Invalidate cache
-        await invalidate_user_chat_cache(user_id)
+        # Generate music recommendations per spec
+        try:
+            from core.services.music_recommendation_service import music_recommendation_service
+            from core.services.rate_limiter import user_rate_limiter
+            
+            # Check user rate limit (100 req/min per user)
+            allowed, retry_after = await user_rate_limiter.check_rate_limit(user_id)
+            if not allowed:
+                logger.warning(f"User {user_id} rate limited, retry after {retry_after}s")
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"Rate limit exceeded. Retry after {retry_after} seconds.",
+                    headers={"Retry-After": str(retry_after)}
+                )
+            
+            # Generate recommendations (200-500 candidates → top 50)
+            recommendations_result = await music_recommendation_service.generate_recommendations(
+                user_id=user_id,
+                spotify_token=spotify_token,
+                force_refresh=False,  # Use cache if available
+                max_results=50
+            )
+            
+            # Calculate total time
+            total_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Build response per spec
+            return APIResponse(
+                success=True,
+                message=f"Session initialized with {recommendations_result.get('total_count', 0)} recommendations",
+                data={
+                    'session_id': str(uuid.uuid4()),
+                    'session_initialized_at': datetime.utcnow().isoformat(),
+                    'recommendations': recommendations_result.get('recommendations', []),
+                    'metadata': {
+                        **recommendations_result.get('metadata', {}),
+                        'session_init_time_ms': total_time_ms,
+                        'performance_target_met': total_time_ms < 3000,  # Spec: < 3s
+                        'cache_status': 'hit' if recommendations_result.get('from_cache') else 'miss'
+                    },
+                    'personality_profile': recommendations_result.get('personality_profile', {}),
+                    'cold_start_info': {
+                        'stage': recommendations_result.get('metadata', {}).get('cold_start_stage'),
+                        'account_age_days': recommendations_result.get('metadata', {}).get('account_age_days'),
+                        'weights': recommendations_result.get('metadata', {}).get('cold_start_weights')
+                    }
+                }
+            )
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions (like rate limiting)
+            raise
+        except Exception as rec_error:
+            logger.error(f"Failed to generate recommendations: {rec_error}")
+            # Return session initialized but without recommendations
+            return APIResponse(
+                success=True,
+                message="Session initialized (recommendations unavailable)",
+                data={
+                    'session_id': str(uuid.uuid4()),
+                    'session_initialized_at': datetime.utcnow().isoformat(),
+                    'recommendations': [],
+                    'error': str(rec_error),
+                    'total_count': 0
+                }
+            )
         
-        logger.info(f"Chat history cleared for user {user_id}")
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error initializing chat session: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear chat history: {str(e)}"
+            detail=f"Failed to initialize session: {str(e)}"
         )
 
 

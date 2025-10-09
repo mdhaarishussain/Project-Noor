@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ArrowLeft, Play, Pause, Volume2, ChevronRight, Gamepad2, Camera, Headphones, TrendingUp, Clock, Star, Users } from "lucide-react"
+import { ArrowLeft, Play, Pause, Volume2, ChevronRight, Gamepad2, Camera, Headphones, TrendingUp, Clock, Star, Users, RefreshCw, Brain } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
 import { GlowingEffect } from "@/components/ui/glowing-effect"
 import AnimatedLoader from "@/components/ui/animated-loader"
@@ -1186,6 +1186,9 @@ function VideoSection({
   const [selectedVideo, setSelectedVideo] = useState<any>(null)
   const [videoProgress, setVideoProgress] = useState<{ [key: string]: number }>({})
   const [watchHistory, setWatchHistory] = useState<any[]>([])
+  const [youtubeConnected, setYoutubeConnected] = useState<boolean>(false)
+  const [isConnecting, setIsConnecting] = useState<boolean>(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
   const availableVideos = recommendations || [];
 
@@ -1204,8 +1207,21 @@ function VideoSection({
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
   }
 
-  // Get personality profile on component mount
+  // Check YouTube connection status on component mount
   useEffect(() => {
+    const checkYouTubeConnection = async () => {
+      try {
+        const response = await fetch(`/api/v1/auth/youtube/status/${profile.id}`)
+        if (response.ok) {
+          const data = await response.json()
+          setYoutubeConnected(data.connected || false)
+        }
+      } catch (error) {
+        console.error('Error checking YouTube connection:', error)
+        setYoutubeConnected(false)
+      }
+    }
+
     const fetchPersonalityProfile = async () => {
       try {
         // This would typically come from your personality assessment
@@ -1223,7 +1239,69 @@ function VideoSection({
       }
     }
 
+    checkYouTubeConnection()
     fetchPersonalityProfile()
+
+    // Check URL parameters for OAuth callback results
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('youtube_connected') === 'true') {
+      setYoutubeConnected(true)
+      toast.success('🎉 YouTube connected successfully! Fetching your personalized recommendations...')
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (urlParams.get('youtube_error')) {
+      const error = urlParams.get('youtube_error')
+      setConnectionError(error || 'Unknown error occurred')
+      toast.error(`Failed to connect YouTube: ${error}`)
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [profile.id])
+
+  const handleYouTubeConnect = useCallback(async () => {
+    setIsConnecting(true)
+    setConnectionError(null)
+    
+    try {
+      const response = await fetch(`/api/v1/auth/youtube/connect?user_id=${profile.id}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data.authorization_url) {
+        // Redirect to Google OAuth
+        window.location.href = data.authorization_url
+      } else {
+        throw new Error('No authorization URL received')
+      }
+    } catch (error) {
+      console.error('Error connecting to YouTube:', error)
+      setConnectionError(error instanceof Error ? error.message : 'Failed to connect')
+      toast.error('Failed to connect to YouTube. Please try again.')
+    } finally {
+      setIsConnecting(false)
+    }
+  }, [profile.id])
+
+  const handleYouTubeDisconnect = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/v1/auth/youtube/disconnect/${profile.id}`, {
+        method: 'POST'
+      })
+      
+      if (response.ok) {
+        setYoutubeConnected(false)
+        toast.success('YouTube disconnected successfully')
+      } else {
+        throw new Error('Failed to disconnect')
+      }
+    } catch (error) {
+      console.error('Error disconnecting YouTube:', error)
+      toast.error('Failed to disconnect YouTube. Please try again.')
+    }
   }, [profile.id])
 
   const handleVideoInteraction = useCallback(async (video: any, interaction: string) => {
@@ -1264,6 +1342,98 @@ function VideoSection({
 
   return (
     <div className="space-y-4">
+      {/* YouTube Connection Status */}
+      <Card className="bg-gradient-to-r from-red-50 via-red-50 to-white dark:from-red-950/20 dark:via-red-950/20 dark:to-gray-950">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+              <Play className="h-4 w-4 text-white" />
+            </div>
+            YouTube Connection
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {youtubeConnected ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <div>
+                  <p className="font-medium text-green-700 dark:text-green-400">
+                    ✅ YouTube Connected
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Getting personalized recommendations from your YouTube data
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleYouTubeDisconnect}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+              >
+                Disconnect
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-3 h-3 bg-gray-400 rounded-full mt-2"></div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Connect Your YouTube Account
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Connect your YouTube account to get personalized video recommendations based on your watch history, 
+                    liked videos, and subscriptions. We'll analyze your preferences and use AI to suggest videos that match your personality.
+                  </p>
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-4">
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <TrendingUp className="h-3 w-3" />
+                      Better Recommendations
+                    </Badge>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      Based on Your History
+                    </Badge>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Brain className="h-3 w-3" />
+                      AI Personality Matching
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              
+              {connectionError && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm text-red-700 dark:text-red-400">
+                    ❌ Connection failed: {connectionError}
+                  </p>
+                </div>
+              )}
+              
+              <Button
+                onClick={handleYouTubeConnect}
+                disabled={isConnecting}
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isConnecting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Connect YouTube
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Video Interaction Summary */}
       {videoInteractions.length > 0 && (
         <Card className="mb-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20">

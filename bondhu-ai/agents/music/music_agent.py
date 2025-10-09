@@ -318,8 +318,13 @@ Provide insights based on established music psychology research while being sens
                 
                 if features:
                     all_features.extend(features)
+                else:
+                    # Handle API failures gracefully (403 Forbidden, rate limits, etc.)
+                    self.logger.warning(f"Failed to get audio features for batch of {len(batch)} tracks - using fallbacks")
+                    # Don't add features to all_features - they'll be handled as missing later
             
             if not all_features:
+                self.logger.warning("No audio features retrieved from Spotify API - all tracks will use fallback values")
                 return {}
 
             # Build mapping by track id
@@ -334,7 +339,8 @@ Provide insights based on established music psychology research while being sens
                 feature_map[f['id']] = {k: f.get(k) for k in feature_keys if k in f}
 
             # Cache the result (longer TTL since audio features don't change)
-            spotify_cache.set(cache_key, feature_map, ttl=3600)  # 1 hour
+            if feature_map:  # Only cache if we have some features
+                spotify_cache.set(cache_key, feature_map, ttl=3600)  # 1 hour
 
             return feature_map
             
@@ -1128,6 +1134,44 @@ Provide insights based on established music psychology research while being sens
             self.logger.error(f"Error getting stored genre history: {e}")
             return {}
     
+    async def _get_top_genres(self, listening_history: List[Dict[str, Any]]) -> List[str]:
+        """
+        Get user's top preferred genres from listening history.
+        
+        Args:
+            listening_history: List of tracks with audio features
+            
+        Returns:
+            List of top GenZ genre names (max 5)
+        """
+        try:
+            if not listening_history:
+                # Default genres for new users
+                return ['Pop Anthems', 'Hype Beats', 'Lo-fi Chill']
+            
+            # Count genre occurrences based on audio feature classification
+            genre_counts = {}
+            
+            for track in listening_history[:50]:  # Analyze top 50 tracks
+                classified_genre = await self._classify_track_genre(track)
+                if classified_genre:
+                    genre_counts[classified_genre] = genre_counts.get(classified_genre, 0) + 1
+            
+            # Sort by frequency and return top genres
+            sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)
+            top_genres = [genre for genre, count in sorted_genres[:5]]
+            
+            # Ensure we have at least some genres
+            if not top_genres:
+                top_genres = ['Pop Anthems', 'Hype Beats', 'Lo-fi Chill']
+            
+            self.logger.info(f"Top genres for user {self.user_id}: {top_genres}")
+            return top_genres
+            
+        except Exception as e:
+            self.logger.error(f"Error getting top genres: {e}")
+            return ['Pop Anthems', 'Hype Beats', 'Lo-fi Chill']
+    
     async def _classify_track_genre(self, track_data: Dict[str, Any]) -> Optional[str]:
         """Classify a track into a GenZ genre based on audio features."""
         try:
@@ -1448,12 +1492,23 @@ Provide insights based on established music psychology research while being sens
             
             # Get recommendations with rate limiting and error handling
             try:
+                # Build kwargs for recommendations call, removing None values
+                rec_kwargs = {
+                    'seed_tracks': track_ids if track_ids else None,
+                    'seed_genres': valid_genres if valid_genres else None,
+                    'limit': limit
+                }
+
+                # Remove None entries
+                rec_kwargs = {k: v for k, v in rec_kwargs.items() if v is not None}
+
+                # Log final kwargs (no secrets)
+                self.logger.debug(f"Calling Spotify.recommendations with: {rec_kwargs}")
+
                 results = await spotify_rate_limiter.rate_limited_call(
                     "recommendations",
                     self.spotify_client.recommendations,
-                    seed_tracks=track_ids if track_ids else None,
-                    seed_genres=valid_genres if valid_genres else None,
-                    limit=limit
+                    **rec_kwargs
                 )
                 
                 if not results:
@@ -1464,8 +1519,36 @@ Provide insights based on established music psychology research while being sens
                 self.logger.error(f"Spotify recommendations API error: {api_error}")
                 self.logger.error(f"Request parameters - seed_tracks: {track_ids}, seed_genres: {valid_genres}, limit: {limit}")
                 
-                # Try fallback with just one genre if we had multiple
-                if len(valid_genres) > 1:
+                # Check if it's a 404 error (endpoint not found or invalid parameters)
+                is_404 = '404' in str(api_error) or 'Not Found' in str(api_error)
+                
+                if is_404 and valid_genres:
+                    # Try with different seed genres for 404 errors
+                    self.logger.info("Got 404, trying with different seed genres...")
+                    fallback_genres = ['pop', 'rock', 'electronic']  # Reliable fallback genres
+                    
+                    for fallback_genre in fallback_genres:
+                        if fallback_genre in available_genres:
+                            try:
+                                self.logger.info(f"Trying fallback genre: {fallback_genre}")
+                                results = await spotify_rate_limiter.rate_limited_call(
+                                    "recommendations",
+                                    self.spotify_client.recommendations,
+                                    seed_genres=[fallback_genre],
+                                    limit=limit
+                                )
+                                if results and results.get("tracks"):
+                                    self.logger.info(f"Fallback genre {fallback_genre} succeeded")
+                                    break
+                            except Exception as fallback_error:
+                                self.logger.warning(f"Fallback genre {fallback_genre} failed: {fallback_error}")
+                                continue
+                    else:
+                        self.logger.error("All fallback genres failed")
+                        return []
+                        
+                # Try fallback with just one genre if we had multiple (for non-404 errors)
+                elif len(valid_genres) > 1:
                     self.logger.info("Retrying with single genre seed...")
                     try:
                         results = await spotify_rate_limiter.rate_limited_call(
@@ -1730,18 +1813,73 @@ Provide insights based on established music psychology research while being sens
 
             # Convert personality traits to target audio features
             target_features = self._personality_to_audio_features(personality_profile)
-            
+
+            # Clamp and validate target feature ranges (Spotify expects 0.0 - 1.0 for most)
+            def clamp(v, lo=0.0, hi=1.0):
+                try:
+                    return max(lo, min(hi, float(v)))
+                except Exception:
+                    return None
+
+            validated_targets = {}
+            for k, v in target_features.items():
+                cv = clamp(v)
+                if cv is not None:
+                    validated_targets[k] = cv
+
+            # Build kwargs and remove None values
+            rec_kwargs = {
+                'seed_genres': spotify_seeds[:2] if spotify_seeds else None,
+                'limit': limit,
+                **validated_targets
+            }
+            rec_kwargs = {k: v for k, v in rec_kwargs.items() if v is not None}
+
+            # Log final kwargs for diagnostics
+            self.logger.debug(f"Calling Spotify.recommendations (persona-tuned) with: {rec_kwargs}")
+
             # Get recommendations with personality-tuned target features
-            results = await spotify_rate_limiter.rate_limited_call(
-                "recommendations",
-                self.spotify_client.recommendations,
-                seed_genres=spotify_seeds[:2],
-                limit=limit,
-                **target_features  # Pass target audio features based on personality
-            )
-            
-            if not results:
-                return []
+            try:
+                results = await spotify_rate_limiter.rate_limited_call(
+                    "recommendations",
+                    self.spotify_client.recommendations,
+                    **rec_kwargs
+                )
+                
+                if not results:
+                    self.logger.warning("Personality-tuned recommendations API returned None")
+                    return []
+                    
+            except Exception as api_error:
+                self.logger.error(f"Personality-tuned recommendations API error: {api_error}")
+                self.logger.error(f"Request parameters: {rec_kwargs}")
+                
+                # Check if it's a 404 error and try fallback
+                is_404 = '404' in str(api_error) or 'Not Found' in str(api_error)
+                
+                if is_404 and spotify_seeds:
+                    # Try without target features for 404 errors
+                    self.logger.info("Got 404 with target features, trying without them...")
+                    fallback_kwargs = {
+                        'seed_genres': spotify_seeds[:1],  # Just one genre
+                        'limit': limit
+                    }
+                    
+                    try:
+                        results = await spotify_rate_limiter.rate_limited_call(
+                            "recommendations",
+                            self.spotify_client.recommendations,
+                            **fallback_kwargs
+                        )
+                        if results:
+                            self.logger.info("Fallback without target features succeeded")
+                        else:
+                            return []
+                    except Exception as fallback_error:
+                        self.logger.error(f"Fallback also failed: {fallback_error}")
+                        return []
+                else:
+                    return []
             
             tracks = results.get("tracks", [])
             

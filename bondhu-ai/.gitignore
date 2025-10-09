@@ -161,3 +161,5 @@ Thumbs.db
 # Docker
 *.yml
 Dockerfile
+
+requirements.txt
