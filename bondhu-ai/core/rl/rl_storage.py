@@ -5,7 +5,7 @@ Stores Q-values, interactions, and model states in database.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from core.database.supabase_client import get_supabase_client
@@ -18,7 +18,8 @@ class RLSupabaseStorage:
     
     def __init__(self, user_id: str):
         self.user_id = user_id
-        self.supabase = get_supabase_client()
+        self.supabase_client = get_supabase_client()
+        self.supabase = self.supabase_client.supabase  # Access the actual Supabase client
     
     async def store_music_interaction(
         self,
@@ -42,7 +43,7 @@ class RLSupabaseStorage:
                 'state_features': state_features,
                 'personality_snapshot': personality_snapshot,
                 'track_duration_ms': song_data.get('duration_ms'),
-                'created_at': datetime.utcnow().isoformat()
+                'created_at': datetime.now(timezone.utc).isoformat()
             }
             
             result = self.supabase.table('music_interactions').insert(interaction_data).execute()
@@ -80,7 +81,7 @@ class RLSupabaseStorage:
                 'popularity': song_data.get('popularity'),
                 'rl_score': rl_score,
                 'personality_match_score': personality_match_score,
-                'recommended_at': datetime.utcnow().isoformat()
+                'recommended_at': datetime.now(timezone.utc).isoformat()
             }
             
             result = self.supabase.table('music_recommendations').insert(rec_data).execute()
@@ -107,7 +108,7 @@ class RLSupabaseStorage:
                     'total_reward': stats['total_reward'],
                     'average_reward': stats['avg_reward'],
                     'learned_from': 'rl_learning',
-                    'last_updated': datetime.utcnow().isoformat()
+                    'last_updated': datetime.now(timezone.utc).isoformat()
                 }
                 
                 # Upsert genre preference
@@ -142,7 +143,7 @@ class RLSupabaseStorage:
                 'epsilon': epsilon,
                 'model_version': f"v{training_episodes}",
                 'metadata': metadata or {},
-                'created_at': datetime.utcnow().isoformat(),
+                'created_at': datetime.now(timezone.utc).isoformat(),
                 'is_active': True
             }
             

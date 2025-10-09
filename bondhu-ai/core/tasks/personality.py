@@ -105,7 +105,68 @@ def analyze_chat_sentiment_batch(self, user_id: str) -> Dict:
             'analyzed_at': datetime.now().isoformat()
         }
         
-        # Determine communication style adjustments
+        # Determine personality trait adjustments based on sentiment patterns
+        trait_adjustments = {}
+        
+        # Extraversion adjustment based on communication patterns
+        if len(messages) > 50:  # High message volume
+            trait_adjustments['extraversion'] = min(5.0, len(messages) / 20)
+        elif len(messages) < 10:
+            trait_adjustments['extraversion'] = -2.0
+        
+        # Neuroticism adjustment based on sentiment volatility
+        if sentiment_volatility > 0.3:
+            trait_adjustments['neuroticism'] = min(8.0, sentiment_volatility * 20)
+        elif sentiment_volatility < 0.1:
+            trait_adjustments['neuroticism'] = -3.0
+        
+        # Agreeableness adjustment based on average sentiment
+        if avg_sentiment > 0.7:
+            trait_adjustments['agreeableness'] = 4.0
+        elif avg_sentiment < 0.3:
+            trait_adjustments['agreeableness'] = -3.0
+        
+        # Openness adjustment based on mood variety
+        mood_variety = len(mood_counts)
+        if mood_variety >= 5:
+            trait_adjustments['openness'] = 5.0
+        elif mood_variety <= 2:
+            trait_adjustments['openness'] = -2.0
+        
+        # Store personality adjustments
+        if trait_adjustments:
+            confidence = min(1.0, len(messages) / 30.0)  # Higher confidence with more messages
+            
+            metadata = {
+                'sentiment_stats': {
+                    'avg_sentiment': avg_sentiment,
+                    'volatility': sentiment_volatility,
+                    'trend': sentiment_trend
+                },
+                'mood_data': {
+                    'dominant': dominant_mood,
+                    'distribution': mood_counts,
+                    'variety': mood_variety
+                },
+                'message_count': len(messages),
+                'analyzed_at': datetime.now().isoformat()
+            }
+            
+            for trait, adjustment_value in trait_adjustments.items():
+                try:
+                    supabase.supabase.rpc('store_personality_adjustment', {
+                        'p_user_id': user_id,
+                        'p_source': 'chat_sentiment',
+                        'p_trait': trait,
+                        'p_adjustment_value': adjustment_value,
+                        'p_confidence_score': confidence,
+                        'p_metadata': metadata
+                    }).execute()
+                    logger.info(f"Stored {trait} adjustment: {adjustment_value:.2f} (confidence: {confidence:.2f})")
+                except Exception as e:
+                    logger.error(f"Failed to store {trait} adjustment: {e}")
+        
+        # Also store insights in personality_data for backward compatibility
         personality_updates = {}
         
         if avg_sentiment < 0.3:

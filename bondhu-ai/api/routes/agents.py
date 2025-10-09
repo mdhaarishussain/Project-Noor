@@ -6,10 +6,11 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from core import get_config
+from core.database.models import PersonalityTrait
 from agents import MusicIntelligenceAgent, VideoIntelligenceAgent, GamingIntelligenceAgent
 from api.models.schemas import APIIntegrationStatus, HealthCheckResponse
 
@@ -172,6 +173,7 @@ async def handle_spotify_callback(
 async def get_spotify_status(user_id: str) -> JSONResponse:
     """
     Check if user has a valid Spotify connection.
+    Automatically refreshes expired tokens.
     
     Args:
         user_id: User ID to check
@@ -181,27 +183,61 @@ async def get_spotify_status(user_id: str) -> JSONResponse:
     """
     try:
         from core.database.supabase_client import get_supabase_client
+        from agents.music.music_agent import MusicIntelligenceAgent
         supabase = get_supabase_client()
         
         token_data = await supabase.get_spotify_tokens(user_id)
         
         if token_data and token_data.get('access_token'):
-            # Check if token is still valid
+            # Check if token is expired or expiring soon
             if token_data['expires_at']:
-                from datetime import datetime
+                from datetime import datetime, timezone, timedelta
                 expires_at = datetime.fromisoformat(token_data['expires_at'].replace('Z', '+00:00'))
-                if expires_at > datetime.utcnow():
-                    return JSONResponse(
-                        status_code=status.HTTP_200_OK,
-                        content={
-                            "connected": True,
-                            "spotify_user_id": token_data.get('spotify_user_id'),
-                            "spotify_user_email": token_data.get('spotify_user_email'),
-                            "connected_at": token_data.get('connected_at'),
-                            "expires_at": token_data.get('expires_at')
-                        }
-                    )
+                current_time = datetime.now(timezone.utc)
+                
+                logging.info(
+                    f"Spotify token check for user {user_id}: "
+                    f"expires_at={expires_at}, current={current_time}, "
+                    f"time_until_expiry={expires_at - current_time}"
+                )
+                
+                # If token expires in < 5 minutes, refresh it
+                if expires_at < current_time + timedelta(minutes=5):
+                    logging.info(f"Token expired or expiring soon for user {user_id}, attempting refresh")
+                    music_agent = MusicIntelligenceAgent(user_id=user_id)
+                    refreshed = await music_agent.refresh_spotify_token_if_needed()
+                    
+                    if not refreshed:
+                        # Refresh failed, connection is dead
+                        logging.error(f"Token refresh failed for user {user_id}")
+                        return JSONResponse(
+                            status_code=status.HTTP_200_OK,
+                            content={
+                                "connected": False,
+                                "reason": "token_refresh_failed",
+                                "message": "Please reconnect Spotify"
+                            }
+                        )
+                    
+                    # Get updated token data
+                    token_data = await supabase.get_spotify_tokens(user_id)
+                    logging.info(f"Token refreshed successfully for user {user_id}")
+                else:
+                    logging.info(f"Token still valid for user {user_id}")
+                
+                # Token is valid
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={
+                        "connected": True,
+                        "spotify_user_id": token_data.get('spotify_user_id'),
+                        "spotify_user_email": token_data.get('spotify_user_email'),
+                        "connected_at": token_data.get('connected_at'),
+                        "expires_at": token_data.get('expires_at')
+                    }
+                )
         
+        logging.info(f"No Spotify connection found for user {user_id}")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"connected": False}
@@ -211,7 +247,7 @@ async def get_spotify_status(user_id: str) -> JSONResponse:
         logging.error(f"Error checking Spotify status for user {user_id}: {e}")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content={"connected": False}
+            content={"connected": False, "error": str(e)}
         )
 
 @agents_router.post("/music/disconnect/{user_id}")
@@ -257,24 +293,52 @@ async def disconnect_spotify(user_id: str) -> JSONResponse:
             detail=f"Failed to disconnect: {str(e)}"
         )
 
-@agents_router.get("/music/genres")
-async def get_available_genres() -> JSONResponse:
+@agents_router.post("/music/genres")
+async def get_available_genres(request: Request) -> JSONResponse:
     """
     Get list of available GenZ-friendly music genres.
+    If personality profile provided, sorts genres by best match.
+    
+    Body (optional):
+        {
+            "user_id": "uuid",
+            "personality_profile": {
+                "openness": 0.7,
+                "extraversion": 0.6,
+                ...
+            }
+        }
     
     Returns:
-        List of genre names
+        List of genre names (sorted by match if personality provided)
     """
     try:
-        # Create temporary music agent to get genres
-        music_agent = MusicIntelligenceAgent(user_id="temp")
-        genres = music_agent.get_available_genres()
+        body = await request.json() if request.headers.get("content-length") else {}
+        user_id = body.get("user_id", "temp")
+        personality_data = body.get("personality_profile")
+        
+        # Create music agent
+        music_agent = MusicIntelligenceAgent(user_id=user_id)
+        
+        # Convert personality data to enum dict if provided
+        personality_profile = None
+        if personality_data:
+            personality_profile = {
+                PersonalityTrait.OPENNESS: personality_data.get("openness", 0.5),
+                PersonalityTrait.CONSCIENTIOUSNESS: personality_data.get("conscientiousness", 0.5),
+                PersonalityTrait.EXTRAVERSION: personality_data.get("extraversion", 0.5),
+                PersonalityTrait.AGREEABLENESS: personality_data.get("agreeableness", 0.5),
+                PersonalityTrait.NEUROTICISM: personality_data.get("neuroticism", 0.5),
+            }
+        
+        genres = music_agent.get_available_genres(personality_profile)
         
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
                 "genres": genres,
-                "total_count": len(genres)
+                "total_count": len(genres),
+                "sorted_by_personality": personality_profile is not None
             }
         )
         

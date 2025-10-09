@@ -120,13 +120,13 @@ class MusicRecommendationRL:
             }
             
             # Store interaction in Supabase
-            track_id = music_data.get('id', music_data.get('track_id', ''))
             await self.storage.store_music_interaction(
-                track_id=track_id,
-                action=feedback_type,
-                reward=reward,
-                confidence=1.0,
-                track_features=music_data
+                song_data=music_data,
+                interaction_type=feedback_type,
+                rl_reward=reward,
+                q_value=updated_q_value,
+                state_features=str(state),
+                personality_snapshot={}
             )
             
             self.experience_buffer.append(experience)
@@ -206,6 +206,12 @@ class MusicRecommendationRL:
             personality_state = []
             for trait in PersonalityTrait:
                 score = personality_profile.get(trait, 0.5)
+                # Handle None values and convert to float
+                if score is None:
+                    score = 0.5
+                else:
+                    score = float(score)
+                
                 # Discretize into low, medium, high
                 if score < 0.33:
                     personality_state.append(f"{trait.value}_low")
@@ -217,8 +223,13 @@ class MusicRecommendationRL:
             # Music features (discretized)
             music_state = []
             
-            # Energy
+            # Energy - Handle None values
             energy = music_data.get('energy', 0.5)
+            if energy is None:
+                energy = 0.5
+            else:
+                energy = float(energy)
+            
             if energy < 0.33:
                 music_state.append("energy_low")
             elif energy < 0.67:
@@ -226,8 +237,13 @@ class MusicRecommendationRL:
             else:
                 music_state.append("energy_high")
             
-            # Valence (happiness)
+            # Valence (happiness) - Handle None values
             valence = music_data.get('valence', 0.5)
+            if valence is None:
+                valence = 0.5
+            else:
+                valence = float(valence)
+            
             if valence < 0.33:
                 music_state.append("valence_low")
             elif valence < 0.67:
@@ -235,8 +251,13 @@ class MusicRecommendationRL:
             else:
                 music_state.append("valence_high")
             
-            # Danceability
+            # Danceability - Handle None values
             danceability = music_data.get('danceability', 0.5)
+            if danceability is None:
+                danceability = 0.5
+            else:
+                danceability = float(danceability)
+            
             if danceability < 0.33:
                 music_state.append("dance_low")
             elif danceability < 0.67:
@@ -244,8 +265,13 @@ class MusicRecommendationRL:
             else:
                 music_state.append("dance_high")
             
-            # Tempo
+            # Tempo - Handle None values
             tempo = music_data.get('tempo', 120)
+            if tempo is None:
+                tempo = 120
+            else:
+                tempo = float(tempo)
+            
             if tempo < 90:
                 music_state.append("tempo_slow")
             elif tempo < 140:

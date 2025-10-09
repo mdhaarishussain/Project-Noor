@@ -108,31 +108,58 @@ export default function MusicRecommendations({
         }
     }, [feedbackState, userId])
 
-    // Browser refresh detection and auto-recommendations
+    // Save selected genres to localStorage for browser refresh
     useEffect(() => {
-        const handlePageLoad = () => {
-            // Detect if this is a fresh page load (browser refresh)
-            const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
-            if (navigationEntry && navigationEntry.type === 'reload') {
-                // This is a browser refresh - fetch fresh recommendations
-                setTimeout(() => {
-                    if (selectedGenres.length > 0) {
-                        fetchRecommendations('browser_refresh')
-                        toast.success('🔄 Fresh recommendations loaded!')
-                    }
-                }, 1000) // Small delay to ensure other useEffects complete
-            }
+        if (selectedGenres.length > 0) {
+            localStorage.setItem(`music_genres_${userId}`, JSON.stringify(selectedGenres))
         }
+    }, [selectedGenres, userId])
 
-        // Check if page was refreshed
-        handlePageLoad()
-    }, [selectedGenres])
+    // Browser refresh detection and auto-recommendations (separate from genre selection)
+    useEffect(() => {
+        // Flag to track if this is a browser refresh
+        let isBrowserRefresh = false
+        
+        // Detect if this is a fresh page load (browser refresh)
+        const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
+        if (navigationEntry && navigationEntry.type === 'reload') {
+            isBrowserRefresh = true
+        }
+        
+        // Only proceed if this is a browser refresh
+        if (!isBrowserRefresh) {
+            return
+        }
+        
+        // Wait for genres and Spotify connection to be ready
+        const waitForReady = setInterval(() => {
+            if (selectedGenres.length > 0 && spotifyConnected !== null) {
+                clearInterval(waitForReady)
+                
+                // Small delay to ensure everything is initialized
+                setTimeout(() => {
+                    console.log('Browser refresh detected - fetching fresh recommendations')
+                    fetchRecommendations('browser_refresh')
+                }, 300)
+            }
+        }, 100)
+        
+        // Cleanup after 5 seconds if still waiting
+        const timeout = setTimeout(() => {
+            clearInterval(waitForReady)
+        }, 5000)
+        
+        return () => {
+            clearInterval(waitForReady)
+            clearTimeout(timeout)
+        }
+    }, [selectedGenres, spotifyConnected]) // Dependencies for readiness check
 
     // Fetch available genres and check Spotify connection on mount
     useEffect(() => {
         fetchAvailableGenres()
         checkSpotifyConnection()
-        
+
         // Handle URL parameters after OAuth callback
         const urlParams = new URLSearchParams(window.location.search)
         if (urlParams.get('spotify_connected') === 'true') {
@@ -155,8 +182,17 @@ export default function MusicRecommendations({
         }
     }, [availableGenres])
 
-    // Fetch recommendations when genres selected
+    // Fetch recommendations when genres selected (but not on browser refresh)
     useEffect(() => {
+        // Check if this is a browser refresh - if so, skip this effect
+        const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
+        const isBrowserRefresh = navigationEntry && navigationEntry.type === 'reload'
+        
+        if (isBrowserRefresh) {
+            // Let the browser refresh handler deal with it
+            return
+        }
+        
         if (selectedGenres.length > 0 && spotifyConnected) {
             fetchRecommendations()
         }
@@ -267,8 +303,17 @@ export default function MusicRecommendations({
 
     const fetchAvailableGenres = async () => {
         try {
-            const response = await apiClient.get('/agents/music/genres') as { genres: string[] }
+            // Fetch genres with personality ordering
+            const response = await apiClient.post('/agents/music/genres', {
+                user_id: userId,
+                personality_profile: personalityProfile
+            }) as { genres: string[], sorted_by_personality: boolean }
+            
             setAvailableGenres(response.genres)
+            
+            if (response.sorted_by_personality) {
+                console.log('Genres sorted by personality match')
+            }
         } catch (error) {
             console.error('Error fetching genres:', error)
             toast.error('Failed to load music genres')
@@ -287,7 +332,7 @@ export default function MusicRecommendations({
         try {
             // Generate unique refresh salt for each call to ensure fresh recommendations
             const refreshSalt = Date.now() + Math.random() * 1000
-            
+
             const response = await apiClient.post(`/agents/music/recommendations/${userId}`, {
                 spotify_token: spotifyToken || undefined,
                 personality_profile: personalityProfile,
@@ -359,11 +404,11 @@ export default function MusicRecommendations({
             })
 
             // Update state - null if toggling off, otherwise set the feedback
-            setFeedbackState(prev => ({ 
-                ...prev, 
+            setFeedbackState(prev => ({
+                ...prev,
                 [song.id]: isToggleOff ? null : (feedbackType as 'liked' | 'disliked')
             }))
-            
+
             if (isToggleOff) {
                 toast.success('🔄 Feedback removed!')
             } else {
@@ -405,12 +450,12 @@ export default function MusicRecommendations({
 
         try {
             // Check if user has stored Spotify tokens
-            const response = await apiClient.get(`/agents/music/status/${userId}`) as { 
+            const response = await apiClient.get(`/agents/music/status/${userId}`) as {
                 connected: boolean
                 spotify_user_id?: string
                 connected_at?: string
             }
-            
+
             if (response.connected) {
                 setSpotifyConnected(true)
                 toast.success('🎵 Spotify connection restored!')
@@ -436,7 +481,20 @@ export default function MusicRecommendations({
             setSpotifyConnected(false)
             setRecommendations({})
             setRLInsights(null)
-            toast.success('🎵 Spotify disconnected successfully')
+            
+            // Clear all local storage related to Spotify
+            localStorage.removeItem(`music_feedback_${userId}`)
+            localStorage.removeItem(`music_manual_count_${userId}`)
+            localStorage.removeItem(`music_last_reset_${userId}`)
+            
+            // Reset feedback state
+            setFeedbackState({})
+            
+            // Reset refresh counts
+            setManualRefreshCount(0)
+            setRefreshDisabled(false)
+            
+            toast.success('🎵 Spotify disconnected successfully. Connect again to re-authenticate.')
         } catch (error: any) {
             toast.error(error.message || 'Failed to disconnect Spotify')
         }
@@ -515,12 +573,12 @@ export default function MusicRecommendations({
                             </div>
                             <div>
                                 <div className="font-semibold">
-                                    {spotifyToken ? 'Spotify Connected' : 'Personality-Only Mode'}
+                                    {spotifyToken ? 'Spotify Connected' : 'Personalized Recommendations'}
                                 </div>
                                 <div className="text-sm text-muted-foreground">
-                                    {spotifyToken 
+                                    {spotifyToken
                                         ? 'Using your listening history for personalized recommendations'
-                                        : 'Using personality-based recommendations'
+                                        : 'We got your taste and now we can make it better'
                                     }
                                 </div>
                             </div>
@@ -604,11 +662,10 @@ export default function MusicRecommendations({
                         <div>
                             <div className="flex items-center gap-3 mb-2">
                                 <h2 className="text-xl font-semibold">Your Music</h2>
-                                <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    spotifyConnected 
-                                        ? 'bg-gradient-to-r from-green-100 to-green-50 text-green-800 border border-green-200' 
+                                <div className={`px-3 py-1 rounded-full text-xs font-medium ${spotifyConnected
+                                        ? 'bg-gradient-to-r from-green-100 to-green-50 text-green-800 border border-green-200'
                                         : 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200'
-                                }`}>
+                                    }`}>
                                     {spotifyConnected ? '🎵 Personalized + History' : '🧠 Personality-Based'}
                                 </div>
                             </div>
@@ -687,10 +744,10 @@ export default function MusicRecommendations({
                                             <Card
                                                 key={song.id}
                                                 className={`relative overflow-hidden transition-all duration-300 ${feedbackState[song.id] === 'liked'
-                                                        ? 'ring-2 ring-green-400'
-                                                        : feedbackState[song.id] === 'disliked'
-                                                            ? 'ring-2 ring-red-400'
-                                                            : ''
+                                                    ? 'ring-2 ring-green-400'
+                                                    : feedbackState[song.id] === 'disliked'
+                                                        ? 'ring-2 ring-red-400'
+                                                        : ''
                                                     }`}
                                             >
                                                 <GlowingEffect disabled={false} proximity={150} spread={40} blur={2} />
@@ -699,8 +756,8 @@ export default function MusicRecommendations({
                                                         {/* Album Artwork */}
                                                         {song.album_image && (
                                                             <div className="flex justify-center">
-                                                                <img 
-                                                                    src={song.album_image} 
+                                                                <img
+                                                                    src={song.album_image}
                                                                     alt={`${song.album} album cover`}
                                                                     className="w-24 h-24 rounded-md object-cover shadow-lg"
                                                                     onError={(e) => {
@@ -710,7 +767,7 @@ export default function MusicRecommendations({
                                                                 />
                                                             </div>
                                                         )}
-                                                        
+
                                                         {/* Song Info */}
                                                         <div className="text-center">
                                                             <h4 className="font-semibold text-sm line-clamp-1">
@@ -757,11 +814,10 @@ export default function MusicRecommendations({
                                                                 size="sm"
                                                                 variant={feedbackState[song.id] === 'liked' ? 'default' : 'outline'}
                                                                 onClick={() => handleFeedback(song, 'like')}
-                                                                className={`flex-1 transition-all duration-200 ${
-                                                                    feedbackState[song.id] === 'liked' 
-                                                                        ? 'bg-green-600 hover:bg-green-700 text-white shadow-md scale-95 border-green-600' 
-                                                                        : 'hover:bg-green-50 hover:text-green-600 hover:border-green-300 hover:scale-105'
-                                                                }`}
+                                                                className={`flex-1 transition-all duration-300 ${feedbackState[song.id] === 'liked'
+                                                                        ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/50 scale-105 border-green-600 ring-2 ring-green-400/30'
+                                                                        : 'hover:bg-green-50 hover:text-green-600 hover:border-green-300 hover:scale-105 hover:shadow-md hover:shadow-green-200/50'
+                                                                    }`}
                                                             >
                                                                 <ThumbsUp className={`h-3 w-3 ${feedbackState[song.id] === 'liked' ? 'fill-current' : ''}`} />
                                                             </Button>
@@ -769,11 +825,10 @@ export default function MusicRecommendations({
                                                                 size="sm"
                                                                 variant={feedbackState[song.id] === 'disliked' ? 'destructive' : 'outline'}
                                                                 onClick={() => handleFeedback(song, 'dislike')}
-                                                                className={`flex-1 transition-all duration-200 ${
-                                                                    feedbackState[song.id] === 'disliked' 
-                                                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-md scale-95 border-red-600' 
-                                                                        : 'hover:bg-red-50 hover:text-red-600 hover:border-red-300 hover:scale-105'
-                                                                }`}
+                                                                className={`flex-1 transition-all duration-300 ${feedbackState[song.id] === 'disliked'
+                                                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/50 scale-105 border-red-600 ring-2 ring-red-400/30'
+                                                                        : 'hover:bg-red-50 hover:text-red-600 hover:border-red-300 hover:scale-105 hover:shadow-md hover:shadow-red-200/50'
+                                                                    }`}
                                                             >
                                                                 <ThumbsDown className={`h-3 w-3 ${feedbackState[song.id] === 'disliked' ? 'fill-current' : ''}`} />
                                                             </Button>
@@ -781,7 +836,7 @@ export default function MusicRecommendations({
                                                                 size="sm"
                                                                 variant="default"
                                                                 onClick={() => handlePlay(song)}
-                                                                className="flex-1 bg-blue-600 hover:bg-blue-700 hover:scale-105 transition-all duration-200 active:scale-95"
+                                                                className="flex-1 bg-blue-600 hover:bg-blue-700 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/50 transition-all duration-300 active:scale-95"
                                                             >
                                                                 <Play className="h-3 w-3 fill-current" />
                                                             </Button>
@@ -846,15 +901,15 @@ export default function MusicRecommendations({
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-3">
-                                            {Object.keys(recommendations).map(genre => 
+                                            {Object.keys(recommendations).map(genre =>
                                                 recommendations[genre]
                                                     .filter(song => feedbackState[song.id] === 'liked')
                                                     .slice(0, 5) // Show max 5 recent likes
                                                     .map(song => (
                                                         <div key={song.id} className="flex items-center space-x-3 p-2 rounded-lg bg-green-50 dark:bg-green-950">
                                                             {song.album_image && (
-                                                                <img 
-                                                                    src={song.album_image} 
+                                                                <img
+                                                                    src={song.album_image}
                                                                     alt={song.album}
                                                                     className="w-12 h-12 rounded object-cover"
                                                                 />
@@ -922,8 +977,8 @@ export default function MusicRecommendations({
                                         <div className="text-center">
                                             <div className="text-sm text-muted-foreground">Learning Quality</div>
                                             <div className="text-xl font-bold">
-                                                {rlInsights.average_reward > 0.5 ? 'Excellent' : 
-                                                 rlInsights.average_reward > 0.2 ? 'Good' : 'Learning'}
+                                                {rlInsights.average_reward > 0.5 ? 'Excellent' :
+                                                    rlInsights.average_reward > 0.2 ? 'Good' : 'Learning'}
                                             </div>
                                             <div className="text-xs text-muted-foreground mt-1">
                                                 Based on your feedback patterns

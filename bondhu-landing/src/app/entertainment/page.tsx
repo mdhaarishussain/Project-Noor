@@ -703,7 +703,7 @@ function EntertainmentHub({
         return 'music'  // Auto-switch to music tab after Spotify OAuth
       }
     }
-    
+
     // Dynamic default section based on user preferences or time of day
     const hour = new Date().getHours()
     if (hour < 12) return userPreferences?.morningPreference || 'games'
