@@ -1545,138 +1545,6 @@ Provide insights based on established music psychology research while being sens
             self.logger.error(f"Error getting Spotify recommendations: {e}")
             return []
 
-    async def get_simple_recommendations(
-        self,
-        personality_profile: Dict[PersonalityTrait, float],
-        limit: int = 18,
-        refresh_salt: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
-        """
-        Generate simple personality-based recommendations as a single feed.
-        Returns a list of songs ranked by personality match.
-        """
-        try:
-            self.logger.info(f"Generating simple recommendations for user {self.user_id}")
-            all_recommendations = []
-            
-            # Get all genres and rank them by personality match
-            target_genres = list(self.genz_genre_map.keys())
-            
-            # Calculate personality preferences for music features
-            extraversion = personality_profile.get(PersonalityTrait.EXTRAVERSION, 0.5)
-            openness = personality_profile.get(PersonalityTrait.OPENNESS, 0.5)
-            neuroticism = personality_profile.get(PersonalityTrait.NEUROTICISM, 0.5)
-            
-            # Simple personality-to-music mapping
-            preferred_energy = extraversion
-            preferred_valence = 1 - neuroticism  # Lower neuroticism = higher positivity
-            preferred_danceability = (extraversion * 0.7 + openness * 0.3)
-            
-            # Get songs from multiple genres
-            songs_per_genre = max(1, limit // len(target_genres))
-            
-            for genz_genre in target_genres:
-                try:
-                    # Get valid Spotify genres for this GenZ genre
-                    spotify_genres = self.genz_genre_map.get(genz_genre, [])
-                    if not spotify_genres:
-                        continue
-                    
-                    # Search for tracks in this genre
-                    search_query = f"genre:{spotify_genres[0]}"
-                    if refresh_salt:
-                        # Add variety with different search terms
-                        search_terms = ["popular", "new", "trending", "hits", "best"]
-                        import random
-                        rng = random.Random(refresh_salt + hash(genz_genre))
-                        search_query += f" {rng.choice(search_terms)}"
-                    
-                    # Search for tracks
-                    search_result = await asyncio.to_thread(
-                        self.spotify_client.search,
-                        q=search_query,
-                        type='track',
-                        limit=songs_per_genre * 2,  # Get extra for filtering
-                        market='US'
-                    )
-                    
-                    tracks = search_result.get('tracks', {}).get('items', [])
-                    if not tracks:
-                        continue
-                    
-                    # Process tracks
-                    for track in tracks[:songs_per_genre]:
-                        if not track.get('id'):
-                            continue
-                        
-                        # Create simplified track data with fallback audio features
-                        track_data = {
-                            'id': track['id'],
-                            'name': track['name'],
-                            'artists': [artist['name'] for artist in track.get('artists', [])],
-                            'album': track.get('album', {}).get('name', 'Unknown Album'),
-                            'album_image': track.get('album', {}).get('images', [{}])[0].get('url') if track.get('album', {}).get('images') else None,
-                            'preview_url': track.get('preview_url'),
-                            'external_url': track.get('external_urls', {}).get('spotify', '#'),
-                            'duration_ms': track.get('duration_ms', 180000),
-                            'popularity': track.get('popularity', 50),
-                            'tempo': 120,  # Default tempo
-                            'genz_genre': genz_genre,
-                            # Generate realistic audio features based on genre and personality
-                            'energy': self._generate_audio_feature('energy', genz_genre, preferred_energy),
-                            'valence': self._generate_audio_feature('valence', genz_genre, preferred_valence),
-                            'danceability': self._generate_audio_feature('danceability', genz_genre, preferred_danceability),
-                            'acousticness': self._generate_audio_feature('acousticness', genz_genre, 0.5),
-                            'instrumentalness': self._generate_audio_feature('instrumentalness', genz_genre, openness * 0.3),
-                        }
-                        
-                        # Calculate personality match
-                        personality_match = self._calculate_personality_match(
-                            track_data, personality_profile, genz_genre
-                        )
-                        track_data['personality_match'] = personality_match
-                        
-                        all_recommendations.append(track_data)
-                        
-                except Exception as e:
-                    self.logger.error(f"Error getting tracks for genre {genz_genre}: {e}")
-                    continue
-            
-            # Sort by personality match and return top results
-            all_recommendations.sort(key=lambda x: x['personality_match'], reverse=True)
-            final_recommendations = all_recommendations[:limit]
-            
-            self.logger.info(f"Generated {len(final_recommendations)} simple recommendations")
-            return final_recommendations
-            
-        except Exception as e:
-            self.logger.error(f"Error generating simple recommendations: {e}")
-            return []
-
-    def _generate_audio_feature(self, feature_name: str, genre: str, personality_preference: float) -> float:
-        """Generate realistic audio feature values based on genre and personality."""
-        # Genre-based baseline values
-        genre_baselines = {
-            'Lo-fi Chill': {'energy': 0.3, 'valence': 0.6, 'danceability': 0.4, 'acousticness': 0.7, 'instrumentalness': 0.8},
-            'Pop Anthems': {'energy': 0.8, 'valence': 0.8, 'danceability': 0.9, 'acousticness': 0.1, 'instrumentalness': 0.1},
-            'Hype Beats': {'energy': 0.9, 'valence': 0.7, 'danceability': 0.95, 'acousticness': 0.05, 'instrumentalness': 0.2},
-            'Indie Vibes': {'energy': 0.5, 'valence': 0.5, 'danceability': 0.5, 'acousticness': 0.4, 'instrumentalness': 0.3},
-            'R&B Feels': {'energy': 0.6, 'valence': 0.7, 'danceability': 0.8, 'acousticness': 0.2, 'instrumentalness': 0.1},
-            'Sad Boy Hours': {'energy': 0.2, 'valence': 0.2, 'danceability': 0.3, 'acousticness': 0.6, 'instrumentalness': 0.4},
-        }
-        
-        baseline = genre_baselines.get(genre, {}).get(feature_name, 0.5)
-        
-        # Blend with personality preference (60% genre, 40% personality)
-        blended = baseline * 0.6 + personality_preference * 0.4
-        
-        # Add some randomness for variety (±10%)
-        import random
-        variation = random.uniform(-0.1, 0.1)
-        final_value = max(0.0, min(1.0, blended + variation))
-        
-        return round(final_value, 2)
-
     async def get_persona_only_recommendations(
         self,
         personality_profile: Dict[PersonalityTrait, float],
@@ -1685,9 +1553,11 @@ Provide insights based on established music psychology research while being sens
         refresh_salt: Optional[int] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
-        DEPRECATED: Use get_simple_recommendations instead for cleaner UX.
         Generate personality-only recommendations WITHOUT using Spotify history.
         This mode is for users who continue without login.
+        
+        Uses pure personality trait scoring to recommend songs from Spotify's catalog
+        based on audio features and genre mapping to personality traits.
         """
         try:
             self.logger.info(f"Generating personality-only recommendations for user {self.user_id}")
