@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { Brain, Zap, Heart } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { GlareCard } from "@/components/ui/glare-card"
 
 export function SolutionSection() {
   const steps = [
@@ -61,19 +61,17 @@ export function SolutionSection() {
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, delay: index * 0.2 }}
                   viewport={{ once: true }}
-                  className="relative"
+                  className="relative h-full"
                 >
-                  <Card className="h-full relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-                    <div className={`absolute inset-0 bg-gradient-to-br ${step.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-                    
-                    <CardContent className="p-8 relative z-10">
+                  <GlareCard>
+                    <div className="p-8 h-full relative z-10">
                       {/* Step Number */}
                       <div className="text-4xl font-bold text-muted-foreground/30 mb-4">
                         {step.number}
                       </div>
 
                       {/* Icon */}
-                      <div className="w-16 h-16 mb-6 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <div className="w-16 h-16 mb-6 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/20 flex items-center justify-center hover:scale-110 transition-transform duration-300">
                         <IconComponent className={`h-8 w-8 ${step.iconColor}`} />
                       </div>
 
@@ -87,8 +85,8 @@ export function SolutionSection() {
                       {index < steps.length - 1 && (
                         <div className="hidden lg:block absolute top-1/2 -right-4 w-8 h-0.5 bg-gradient-to-r from-primary/50 to-transparent" />
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </GlareCard>
 
                   {/* Animated Connecting Arrow for Mobile */}
                   {index < steps.length - 1 && (

@@ -18,12 +18,12 @@ export function HeroSection() {
   const [isCtaHovered, setIsCtaHovered] = useState(false)
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-background via-background to-secondary/20">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-background via-background to-secondary/20 -mt-14 pt-14">
       {/* Liquid Ether Background Layer */}
       <div className="absolute inset-0 z-0">
         <LiquidEther
-          colors={['#10b981', '#3b82f6', '#8b5cf6']} // Bondhu AI theme: green-500, blue-500, purple-500
-          mouseForce={isCtaHovered ? 30 : 20}
+          colors={['#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4']} // Warm, soothing: amber, pink, purple, cyan
+          mouseForce={isCtaHovered ? 18 : 12}
           cursorSize={isCtaHovered ? 120 : 100}
           isViscous={false}
           viscous={30}
@@ -32,17 +32,19 @@ export function HeroSection() {
           resolution={0.5}
           isBounce={false}
           autoDemo={true}
-          autoSpeed={0.4}
-          autoIntensity={1.8}
-          takeoverDuration={0.3}
-          autoResumeDelay={4000}
-          autoRampDuration={0.8}
-          style={{ opacity: 0.5 }}
+          autoSpeed={0.3}
+          autoIntensity={1.2}
+          takeoverDuration={0.4}
+          autoResumeDelay={2500}
+          autoRampDuration={1.5}
+          style={{ opacity: 0.85 }}
+          respectMotionPreference={true}
+          mentalHealthMode={true}
         />
       </div>
 
       {/* Gradient Overlay for Better Text Readability */}
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-background/20 via-background/40 to-background/60 pointer-events-none" />
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-background/5 via-background/20 to-background/40 pointer-events-none" />
       
       {/* Original Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden z-[2] pointer-events-none">
@@ -162,7 +164,7 @@ export function HeroSection() {
           transition={{ duration: 0.8 }}
         >
           <Badge variant="secondary" className="mb-6 backdrop-blur-sm bg-secondary/80 shadow-lg">
-            🚀 Now in Beta - Join 10,000+ users
+            🚀 Now in Beta - Brought to you on World Mental Health Day'25
           </Badge>
         </motion.div>
 

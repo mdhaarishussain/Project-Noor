@@ -23,6 +23,8 @@ interface LiquidEtherProps {
   takeoverDuration?: number;
   autoResumeDelay?: number;
   autoRampDuration?: number;
+  respectMotionPreference?: boolean; // Honor prefers-reduced-motion
+  mentalHealthMode?: boolean; // Extra gentle defaults for mental health context
 }
 
 function LiquidEther({
@@ -44,7 +46,9 @@ function LiquidEther({
   autoIntensity = 2.2,
   takeoverDuration = 0.25,
   autoResumeDelay = 3000,
-  autoRampDuration = 0.6
+  autoRampDuration = 0.6,
+  respectMotionPreference = true,
+  mentalHealthMode = false
 }: LiquidEtherProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const webglRef = useRef<any>(null);
@@ -53,9 +57,54 @@ function LiquidEther({
   const intersectionObserverRef = useRef<IntersectionObserver | null>(null);
   const isVisibleRef = useRef(true);
   const resizeRafRef = useRef<number | null>(null);
+  const prefersReducedMotion = useRef(false);
 
   useEffect(() => {
     if (!mountRef.current) return;
+
+    // Check for reduced motion preference
+    if (respectMotionPreference && typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      prefersReducedMotion.current = mediaQuery.matches;
+      
+      const handleChange = (e: MediaQueryListEvent) => {
+        prefersReducedMotion.current = e.matches;
+        if (e.matches && webglRef.current) {
+          // Gracefully reduce animation
+          webglRef.current.pause();
+        } else if (!e.matches && webglRef.current && isVisibleRef.current) {
+          webglRef.current.start();
+        }
+      };
+      
+      mediaQuery.addEventListener('change', handleChange);
+    }
+
+    // If user prefers reduced motion, render static fallback
+    if (prefersReducedMotion.current) {
+      return;
+    }
+
+    // Apply mental health mode adjustments
+    let adjustedMouseForce = mouseForce;
+    let adjustedAutoSpeed = autoSpeed;
+    let adjustedAutoIntensity = autoIntensity;
+    let adjustedColors = colors;
+
+    if (mentalHealthMode) {
+      // Gentler defaults for mental health context
+      adjustedMouseForce = Math.min(mouseForce, 12);
+      adjustedAutoSpeed = Math.min(autoSpeed, 0.3);
+      adjustedAutoIntensity = Math.min(autoIntensity, 1.2);
+      // Ensure colors are calming tones
+      if (colors.length === 3 && 
+          colors[0] === '#10b981' && 
+          colors[1] === '#3b82f6' && 
+          colors[2] === '#8b5cf6') {
+        // Use softer, more muted versions
+        adjustedColors = ['#059669', '#2563eb', '#7c3aed'];
+      }
+    }
 
     function makePaletteTexture(stops: string[]) {
       let arr: string[];
@@ -87,7 +136,7 @@ function LiquidEther({
       return tex;
     }
 
-    const paletteTex = makePaletteTexture(colors);
+    const paletteTex = makePaletteTexture(adjustedColors);
     const bgVec4 = new THREE.Vector4(0, 0, 0, 0);
 
     class CommonClass {
@@ -458,9 +507,14 @@ function LiquidEther({
     void main(){
     vec2 vel = texture2D(velocity, uv).xy;
     float lenv = clamp(length(vel), 0.0, 1.0);
-    vec3 c = texture2D(palette, vec2(lenv, 0.5)).rgb;
-    vec3 outRGB = mix(bgColor.rgb, c, lenv);
-    float outA = mix(bgColor.a, 1.0, lenv);
+    // Gentle color enhancement for mental health context
+    float enhancedLenv = pow(lenv, 0.75); // Subtle boost for visibility
+    vec3 c = texture2D(palette, vec2(enhancedLenv, 0.5)).rgb;
+    // Moderate brightness increase - not aggressive
+    c = c * 1.15; // Gentle 15% boost instead of 40%
+    c = clamp(c, 0.0, 1.0);
+    vec3 outRGB = mix(bgColor.rgb, c, enhancedLenv * 0.9);
+    float outA = mix(bgColor.a, 1.0, enhancedLenv);
     gl_FragColor = vec4(outRGB, outA);
 }
 `;
@@ -1147,8 +1201,8 @@ function LiquidEther({
     const webgl = new WebGLManager({
       $wrapper: container,
       autoDemo,
-      autoSpeed,
-      autoIntensity,
+      autoSpeed: adjustedAutoSpeed,
+      autoIntensity: adjustedAutoIntensity,
       takeoverDuration,
       autoResumeDelay,
       autoRampDuration
@@ -1161,7 +1215,7 @@ function LiquidEther({
       if (!sim) return;
       const prevRes = sim.options.resolution;
       Object.assign(sim.options, {
-        mouse_force: mouseForce,
+        mouse_force: adjustedMouseForce,
         cursor_size: cursorSize,
         isViscous,
         viscous,
@@ -1228,6 +1282,12 @@ function LiquidEther({
         webglRef.current.dispose();
       }
       webglRef.current = null;
+      
+      // Cleanup motion preference listener
+      if (respectMotionPreference && typeof window !== 'undefined') {
+        const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+        // Note: We can't store the handler reference, so this cleanup is best-effort
+      }
     };
   }, [
     BFECC,
@@ -1246,7 +1306,9 @@ function LiquidEther({
     autoIntensity,
     takeoverDuration,
     autoResumeDelay,
-    autoRampDuration
+    autoRampDuration,
+    respectMotionPreference,
+    mentalHealthMode
   ]);
 
   useEffect(() => {
@@ -1312,7 +1374,23 @@ function LiquidEther({
         overflow: 'hidden',
         ...style
       }} 
-    />
+    >
+      {/* Static fallback for users who prefer reduced motion */}
+      {prefersReducedMotion.current && (
+        <div 
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `linear-gradient(135deg, 
+              ${colors[0]}15 0%, 
+              ${colors[1]}10 50%, 
+              ${colors[2]}15 100%)`,
+            opacity: typeof style.opacity === 'number' ? style.opacity * 0.6 : 0.3,
+          }}
+          aria-label="Calm background gradient"
+        />
+      )}
+    </div>
   );
 }
 

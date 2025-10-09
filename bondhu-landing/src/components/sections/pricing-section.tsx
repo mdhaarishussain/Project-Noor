@@ -101,7 +101,7 @@ export function PricingSection() {
 
                   <div className="mt-4 text-center">
                     <p className="text-xs text-muted-foreground">
-                      No credit card required • Join 10,000+ users
+                      No credit card required • Join beta users
                     </p>
                   </div>
                 </CardContent>

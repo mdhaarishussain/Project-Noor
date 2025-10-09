@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { TrendingDown, Users, Brain } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Component as ImageAutoSlider } from "@/components/ui/image-auto-slider"
 
 export function ProblemSection() {
   const statistics = [
@@ -60,9 +61,9 @@ export function ProblemSection() {
                 transition={{ duration: 0.8, delay: index * 0.1 }}
                 viewport={{ once: true }}
               >
-                <Card className="text-center p-6 h-full">
-                  <CardContent className="p-0">
-                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+                <Card className="text-center p-6 h-full bg-white/70 dark:bg-gray-900/70 backdrop-blur-2xl backdrop-saturate-150 border border-white/30 dark:border-white/10 shadow-2xl shadow-black/10 dark:shadow-black/30 relative overflow-hidden before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-b before:from-white/20 before:to-transparent dark:before:from-white/5 dark:before:to-transparent before:pointer-events-none hover:shadow-xl hover:shadow-destructive/20 hover:scale-[1.02] transition-all duration-300">
+                  <CardContent className="p-0 relative z-10">
+                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-destructive/10 backdrop-blur-sm flex items-center justify-center border border-destructive/20">
                       <IconComponent className="h-6 w-6 text-destructive" />
                     </div>
                     <div className="text-4xl font-bold text-destructive mb-2">
@@ -75,6 +76,17 @@ export function ProblemSection() {
             )
           })}
         </div>
+
+        {/* Image Auto Slider */}
+        <motion.div
+          className="mb-16"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          viewport={{ once: true }}
+        >
+          <ImageAutoSlider />
+        </motion.div>
 
         {/* Pain Points */}
         <motion.div
