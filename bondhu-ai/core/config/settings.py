@@ -153,12 +153,28 @@ class PersonalityConfig:
 @dataclass
 class RedisConfig:
     """Redis cache configuration."""
+    # Support both REDIS_URL and separate host/port for Docker
     url: str = field(default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379"))
+    host: str = field(default_factory=lambda: os.getenv("REDIS_HOST", "localhost"))
+    port: int = field(default_factory=lambda: int(os.getenv("REDIS_PORT", "6379")))
+    db: int = field(default_factory=lambda: int(os.getenv("REDIS_DB", "0")))
+    password: Optional[str] = field(default_factory=lambda: os.getenv("REDIS_PASSWORD"))
+    
     upstash_url: str = field(default_factory=lambda: os.getenv("UPSTASH_REDIS_REST_URL", ""))
     upstash_token: str = field(default_factory=lambda: os.getenv("UPSTASH_REDIS_REST_TOKEN", ""))
     default_ttl: int = field(default_factory=lambda: int(os.getenv("REDIS_DEFAULT_TTL", "3600")))  # 1 hour
     max_connections: int = field(default_factory=lambda: int(os.getenv("REDIS_MAX_CONNECTIONS", "50")))
     socket_timeout: int = field(default_factory=lambda: int(os.getenv("REDIS_SOCKET_TIMEOUT", "5")))
+    
+    def __post_init__(self):
+        """Extract host/port from URL if not explicitly set."""
+        # If host is default but URL is custom, parse URL
+        if self.host == "localhost" and self.url != "redis://localhost:6379":
+            import re
+            match = re.match(r'redis://([^:]+):(\d+)', self.url)
+            if match:
+                self.host = match.group(1)
+                self.port = int(match.group(2))
 
 @dataclass
 class CeleryConfig:

@@ -6,9 +6,16 @@ Handles background task processing for music/video fetching, sentiment analysis,
 from celery import Celery
 from celery.schedules import crontab
 from core.config import get_config
+import logging
+
+logger = logging.getLogger("bondhu.celery")
 
 # Get configuration
 config = get_config()
+
+# Log Celery broker/backend URLs for debugging
+logger.info(f"🔧 Celery broker: {config.celery.broker_url}")
+logger.info(f"🔧 Celery backend: {config.celery.result_backend}")
 
 # Create Celery app
 celery_app = Celery(
@@ -40,28 +47,28 @@ celery_app.conf.update(
     task_time_limit=300,
     task_soft_time_limit=240,
     
-    # Worker configuration
+    # Worker configuration (Windows/WSL compatible)
     worker_prefetch_multiplier=1,  # Reduced from 4 to minimize Redis polling
     worker_max_tasks_per_child=1000,
     worker_disable_rate_limits=False,
     
     # Broker connection settings (AGGRESSIVE polling reduction for free tier)
     broker_connection_retry_on_startup=True,
-    broker_pool_limit=1,  # Minimize connection pool to 1
-    broker_heartbeat=0,  # DISABLE heartbeat to reduce polling
-    broker_connection_max_retries=3,
+    broker_pool_limit=2,  # Minimize connection pool (increased to 2 for stability)
+    broker_heartbeat=None,  # Disable heartbeat to reduce polling
+    broker_connection_max_retries=10,
     
     # Transport options (reduce Redis polling frequency)
     broker_transport_options={
         'visibility_timeout': 43200,  # 12 hours
         'fanout_prefix': True,
         'fanout_patterns': True,
-        'max_retries': 3,
+        'max_retries': 10,
         'interval_start': 0,
         'interval_step': 0.5,
         'interval_max': 3,
-        # CRITICAL: Increase sleep time between polls from 0.1s to 5s
-        'max_sleep_time': 5,  # Sleep 5 seconds between queue checks
+        # CRITICAL: Increase sleep time between polls from 0.1s to 1s
+        'max_sleep_time': 1,  # Sleep 1 second between queue checks (was 5s)
     },
     
     # Result backend
