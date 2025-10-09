@@ -125,6 +125,11 @@ interface GridItemProps {
 const GridItem = ({ icon, title, description, onClick, isActive, gradient, darkGradient, buttonGradient, buttonDarkGradient, buttonBorder, showPreview, previewType, entertainmentStats }: GridItemProps) => {
   const [isHovered, setIsHovered] = React.useState(false);
   
+  const handleExploreClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent double trigger
+    onClick();
+  };
+  
   return (
     <div 
       className="min-h-[10rem] list-none cursor-pointer group" 
@@ -167,6 +172,7 @@ const GridItem = ({ icon, title, description, onClick, isActive, gradient, darkG
                   borderColor={isActive ? "border-white/40" : buttonBorder}
                   isActive={isActive}
                   isCardHovered={isHovered}
+                  onClick={handleExploreClick}
                 />
               </div>
             </div>

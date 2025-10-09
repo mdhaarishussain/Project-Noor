@@ -7,6 +7,7 @@ interface AnimatedExploreButtonProps {
   borderColor?: string;
   isActive?: boolean;
   isCardHovered?: boolean;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 export const AnimatedExploreButton = ({ 
@@ -15,9 +16,17 @@ export const AnimatedExploreButton = ({
   darkGradient = "dark:from-[#070e41] dark:to-[#263381]",
   borderColor = "border-[#656fe2]",
   isActive = false,
-  isCardHovered = false
+  isCardHovered = false,
+  onClick
 }: AnimatedExploreButtonProps) => {
   const isExpanded = isActive || isCardHovered;
+  
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card's onClick
+    if (onClick) {
+      onClick(e);
+    }
+  };
   
   return (
     <button 
@@ -29,7 +38,7 @@ export const AnimatedExploreButton = ({
         ${isExpanded ? 'w-28' : 'w-10'}
       `}
       aria-label={label}
-      onClick={(e) => e.stopPropagation()} // Prevent double-click on card
+      onClick={handleClick}
     >
       <div className={`
         inline-flex whitespace-nowrap transition-all duration-200 text-sm
