@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "name": "bondhu-landing",
+  "builds": [
+    {
+      "src": "bondhu-landing/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/bondhu-landing/$1" }
+  ]
+}
