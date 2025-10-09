@@ -20,6 +20,7 @@ from api.routes.entertainment import router as entertainment_router
 from api.routes.video_recommendations import router as video_router
 from api.routes.memory import router as memory_router
 from api.routes.stats import router as stats_router
+from api.routes.auth.youtube import router as youtube_auth_router
 from core.database.supabase_client import cleanup_database
 
 # Configure logging
@@ -65,6 +66,14 @@ async def lifespan(app: FastAPI):
         else:
             logger.warning(f"System health check issues: {health_check}")
         
+        # Start video recommendation scheduler
+        try:
+            from core.services.video_scheduler import start_video_scheduler
+            start_video_scheduler()
+            logger.info("✅ Video recommendation scheduler started (8 AM, 2 PM, 8 PM)")
+        except Exception as e:
+            logger.error(f"⚠️ Failed to start video scheduler: {e}")
+        
         yield
         
     except Exception as e:
@@ -74,6 +83,15 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down Bondhu AI application")
     try:
+        # Stop video scheduler
+        try:
+            from core.services.video_scheduler import stop_video_scheduler
+            stop_video_scheduler()
+            logger.info("✅ Video recommendation scheduler stopped")
+        except Exception as e:
+            logger.error(f"⚠️ Error stopping video scheduler: {e}")
+        
+        # Database cleanup
         await cleanup_database()
         logger.info("Database cleanup completed")
     except Exception as e:
@@ -104,7 +122,8 @@ app.include_router(chat_router)
 app.include_router(entertainment_router)
 app.include_router(video_router)
 app.include_router(memory_router)  # Memory management endpoints
-app.include_router(stats_router)   # NEW: User activity stats and dashboard
+app.include_router(stats_router)   # User activity stats and dashboard
+app.include_router(youtube_auth_router)  # YouTube OAuth authentication
 
 @app.get("/")
 async def root() -> Dict[str, str]:

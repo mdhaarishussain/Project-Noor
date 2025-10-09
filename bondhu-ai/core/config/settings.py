@@ -85,6 +85,22 @@ class YouTubeConfig:
             raise ValueError("YouTube API key must be provided")
 
 @dataclass
+class GoogleConfig:
+    """Google OAuth configuration for YouTube."""
+    client_id: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID", ""))
+    client_secret: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET", ""))
+    redirect_uri: str = field(default_factory=lambda: os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/youtube/callback"))
+    scopes: list = field(default_factory=lambda: [
+        "https://www.googleapis.com/auth/youtube.readonly",
+        "https://www.googleapis.com/auth/youtube.force-ssl"
+    ])
+    
+    def __post_init__(self):
+        # Require Google OAuth credentials only in production
+        if IS_PRODUCTION and (not self.client_id or not self.client_secret):
+            raise ValueError("Google OAuth credentials required")
+
+@dataclass
 class SteamConfig:
     """Steam API configuration."""
     api_key: str = field(default_factory=lambda: os.getenv("STEAM_API_KEY", ""))
@@ -156,6 +172,7 @@ class BondhuConfig:
     gemini: GeminiConfig = field(default_factory=GeminiConfig)
     spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
+    google: GoogleConfig = field(default_factory=GoogleConfig)
     steam: SteamConfig = field(default_factory=SteamConfig)
     agents: AgentConfig = field(default_factory=AgentConfig)
     rate_limits: RateLimitConfig = field(default_factory=RateLimitConfig)
