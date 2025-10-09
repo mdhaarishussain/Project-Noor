@@ -5,6 +5,12 @@ Provides API endpoints for personality analysis and agent management.
 
 import logging
 import sys
+from pathlib import Path
+
+# Ensure project root is on sys.path so absolute imports (e.g. `api.models`) work
+project_root = str(Path(__file__).resolve().parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
