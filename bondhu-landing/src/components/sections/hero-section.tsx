@@ -3,19 +3,49 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
-import { HeroBackground } from "./hero-background"
 import { EnhancedHeroCTA } from "./enhanced-hero-cta"
+import dynamic from "next/dynamic"
+
+// Dynamically import LiquidEther to avoid SSR issues with Three.js
+const LiquidEther = dynamic(() => import("@/components/sections/LiquidEther"), {
+  ssr: false,
+  loading: () => (
+    <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-secondary/20" />
+  )
+})
 
 export function HeroSection() {
   const [isCtaHovered, setIsCtaHovered] = useState(false)
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-background via-background to-secondary/20">
-      {/* New Animated Breathing Circles Background */}
-      <HeroBackground intensity={isCtaHovered ? "enhanced" : "normal"} />
+      {/* Liquid Ether Background Layer */}
+      <div className="absolute inset-0 z-0">
+        <LiquidEther
+          colors={['#10b981', '#3b82f6', '#8b5cf6']} // Bondhu AI theme: green-500, blue-500, purple-500
+          mouseForce={isCtaHovered ? 30 : 20}
+          cursorSize={isCtaHovered ? 120 : 100}
+          isViscous={false}
+          viscous={30}
+          iterationsViscous={32}
+          iterationsPoisson={32}
+          resolution={0.5}
+          isBounce={false}
+          autoDemo={true}
+          autoSpeed={0.4}
+          autoIntensity={1.8}
+          takeoverDuration={0.3}
+          autoResumeDelay={4000}
+          autoRampDuration={0.8}
+          style={{ opacity: 0.5 }}
+        />
+      </div>
+
+      {/* Gradient Overlay for Better Text Readability */}
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-background/20 via-background/40 to-background/60 pointer-events-none" />
       
       {/* Original Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden" style={{ zIndex: 1 }}>
+      <div className="absolute inset-0 overflow-hidden z-[2] pointer-events-none">
         {/* Bengali Script Background */}
         <motion.div
           className="absolute top-1/4 left-1/4 text-9xl font-bold text-muted/5 select-none"
@@ -70,7 +100,7 @@ export function HeroSection() {
         })}
 
         {/* Connection Lines */}
-        <svg className="absolute inset-0 w-full h-full">
+        <svg className="absolute inset-0 w-full h-full opacity-70">
           <motion.path
             d="M 100,200 Q 400,100 700,300 T 1000,200"
             stroke="currentColor"
@@ -93,7 +123,7 @@ export function HeroSection() {
           />
         </svg>
 
-        {/* Glowing Orbs */}
+        {/* Glowing Orbs - Reduced opacity to complement Liquid Ether */}
         {Array.from({ length: 3 }).map((_, i) => {
           const orbPositions = [
             { left: "20%", top: "20%" },
@@ -105,14 +135,14 @@ export function HeroSection() {
           return (
             <motion.div
               key={`orb-${i}`}
-              className="absolute w-32 h-32 rounded-full bg-gradient-to-r from-primary/20 to-secondary/20 blur-xl"
+              className="absolute w-32 h-32 rounded-full bg-gradient-to-r from-primary/15 to-secondary/15 blur-xl"
               style={{
                 left: orbPositions[i].left,
                 top: orbPositions[i].top,
               }}
               animate={{
                 scale: [1, 1.2, 1],
-                opacity: [0.3, 0.6, 0.3],
+                opacity: [0.2, 0.4, 0.2],
               }}
               transition={{
                 duration: orbDurations[i],
@@ -131,25 +161,25 @@ export function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <Badge variant="secondary" className="mb-6">
+          <Badge variant="secondary" className="mb-6 backdrop-blur-sm bg-secondary/80 shadow-lg">
             🚀 Now in Beta - Join 10,000+ users
           </Badge>
         </motion.div>
 
         <motion.h1
-          className="text-4xl md:text-6xl font-bold text-center mb-6"
+          className="text-4xl md:text-6xl lg:text-7xl font-bold text-center mb-6 drop-shadow-lg"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
           Meet Your Digital{" "}
-          <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent drop-shadow-lg">
             বন্ধু
           </span>
         </motion.h1>
 
         <motion.p
-          className="text-xl text-muted-foreground max-w-2xl mx-auto text-center mb-8"
+          className="text-xl text-muted-foreground max-w-2xl mx-auto text-center mb-8 drop-shadow-md"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
@@ -172,7 +202,7 @@ export function HeroSection() {
             ease: "easeInOut",
           }}
         >
-          <div className="w-6 h-10 border-2 border-muted-foreground rounded-full flex justify-center">
+          <div className="w-6 h-10 border-2 border-muted-foreground/60 rounded-full flex justify-center backdrop-blur-sm bg-background/10">
             <motion.div
               className="w-1 h-3 bg-muted-foreground rounded-full mt-2"
               animate={{
