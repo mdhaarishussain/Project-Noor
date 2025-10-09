@@ -96,9 +96,16 @@ class GoogleConfig:
     ])
     
     def __post_init__(self):
-        # Require Google OAuth credentials only in production
-        if IS_PRODUCTION and (not self.client_id or not self.client_secret):
-            raise ValueError("Google OAuth credentials required")
+        # Skip Google OAuth validation for Celery workers - they don't need YouTube API
+        is_celery_worker = os.getenv("CELERY_WORKER", "false").lower() == "true"
+        
+        # Allow skipping Google OAuth for development/testing
+        skip_google_oauth = os.getenv("SKIP_GOOGLE_OAUTH", "false").lower() == "true"
+        
+        if IS_PRODUCTION and not is_celery_worker and not skip_google_oauth and (not self.client_id or not self.client_secret):
+            import warnings
+            warnings.warn("Google OAuth credentials not provided. YouTube features will be disabled.", UserWarning)
+            # Don't raise error, just warn - allows system to start
 
 @dataclass
 class SteamConfig:

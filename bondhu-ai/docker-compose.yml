@@ -78,6 +78,7 @@ services:
       - PYTHONPATH=/app
       - ENVIRONMENT=production
       - LOG_LEVEL=warning
+      - CELERY_WORKER=true
     env_file:
       - .env
     depends_on:
@@ -91,6 +92,38 @@ services:
         limits:
           memory: 80M
           cpus: '0.1'
+    security_opt:
+      - no-new-privileges:true
+
+  # Frontend Service - Next.js Application
+  bondhu-frontend:
+    build:
+      context: ../bondhu-landing
+      dockerfile: Dockerfile.dev
+    container_name: bondhu-frontend
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000
+    env_file:
+      - ../bondhu-landing/.env.local
+    depends_on:
+      - bondhu-api
+    restart: unless-stopped
+    networks:
+      - bondhu-network
+    volumes:
+      - ../bondhu-landing:/app
+      - /app/node_modules
+      - /app/.next
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
     security_opt:
       - no-new-privileges:true
 
