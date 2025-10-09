@@ -119,23 +119,23 @@ export default function MusicRecommendations({
     useEffect(() => {
         // Flag to track if this is a browser refresh
         let isBrowserRefresh = false
-        
+
         // Detect if this is a fresh page load (browser refresh)
         const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
         if (navigationEntry && navigationEntry.type === 'reload') {
             isBrowserRefresh = true
         }
-        
+
         // Only proceed if this is a browser refresh
         if (!isBrowserRefresh) {
             return
         }
-        
+
         // Wait for genres and Spotify connection to be ready
         const waitForReady = setInterval(() => {
             if (selectedGenres.length > 0 && spotifyConnected !== null) {
                 clearInterval(waitForReady)
-                
+
                 // Small delay to ensure everything is initialized
                 setTimeout(() => {
                     console.log('Browser refresh detected - fetching fresh recommendations')
@@ -143,12 +143,12 @@ export default function MusicRecommendations({
                 }, 300)
             }
         }, 100)
-        
+
         // Cleanup after 5 seconds if still waiting
         const timeout = setTimeout(() => {
             clearInterval(waitForReady)
         }, 5000)
-        
+
         return () => {
             clearInterval(waitForReady)
             clearTimeout(timeout)
@@ -187,12 +187,12 @@ export default function MusicRecommendations({
         // Check if this is a browser refresh - if so, skip this effect
         const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
         const isBrowserRefresh = navigationEntry && navigationEntry.type === 'reload'
-        
+
         if (isBrowserRefresh) {
             // Let the browser refresh handler deal with it
             return
         }
-        
+
         if (selectedGenres.length > 0 && spotifyConnected) {
             fetchRecommendations()
         }
@@ -308,9 +308,9 @@ export default function MusicRecommendations({
                 user_id: userId,
                 personality_profile: personalityProfile
             }) as { genres: string[], sorted_by_personality: boolean }
-            
+
             setAvailableGenres(response.genres)
-            
+
             if (response.sorted_by_personality) {
                 console.log('Genres sorted by personality match')
             }
@@ -481,19 +481,19 @@ export default function MusicRecommendations({
             setSpotifyConnected(false)
             setRecommendations({})
             setRLInsights(null)
-            
+
             // Clear all local storage related to Spotify
             localStorage.removeItem(`music_feedback_${userId}`)
             localStorage.removeItem(`music_manual_count_${userId}`)
             localStorage.removeItem(`music_last_reset_${userId}`)
-            
+
             // Reset feedback state
             setFeedbackState({})
-            
+
             // Reset refresh counts
             setManualRefreshCount(0)
             setRefreshDisabled(false)
-            
+
             toast.success('🎵 Spotify disconnected successfully. Connect again to re-authenticate.')
         } catch (error: any) {
             toast.error(error.message || 'Failed to disconnect Spotify')
@@ -663,8 +663,8 @@ export default function MusicRecommendations({
                             <div className="flex items-center gap-3 mb-2">
                                 <h2 className="text-xl font-semibold">Your Music</h2>
                                 <div className={`px-3 py-1 rounded-full text-xs font-medium ${spotifyConnected
-                                        ? 'bg-gradient-to-r from-green-100 to-green-50 text-green-800 border border-green-200'
-                                        : 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200'
+                                    ? 'bg-gradient-to-r from-green-100 to-green-50 text-green-800 border border-green-200'
+                                    : 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 border border-blue-200'
                                     }`}>
                                     {spotifyConnected ? '🎵 Personalized + History' : '🧠 Personality-Based'}
                                 </div>
@@ -815,8 +815,8 @@ export default function MusicRecommendations({
                                                                 variant={feedbackState[song.id] === 'liked' ? 'default' : 'outline'}
                                                                 onClick={() => handleFeedback(song, 'like')}
                                                                 className={`flex-1 transition-all duration-300 ${feedbackState[song.id] === 'liked'
-                                                                        ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/50 scale-105 border-green-600 ring-2 ring-green-400/30'
-                                                                        : 'hover:bg-green-50 hover:text-green-600 hover:border-green-300 hover:scale-105 hover:shadow-md hover:shadow-green-200/50'
+                                                                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/50 scale-105 border-green-600 ring-2 ring-green-400/30'
+                                                                    : 'hover:bg-green-50 hover:text-green-600 hover:border-green-300 hover:scale-105 hover:shadow-md hover:shadow-green-200/50'
                                                                     }`}
                                                             >
                                                                 <ThumbsUp className={`h-3 w-3 ${feedbackState[song.id] === 'liked' ? 'fill-current' : ''}`} />
@@ -826,8 +826,8 @@ export default function MusicRecommendations({
                                                                 variant={feedbackState[song.id] === 'disliked' ? 'destructive' : 'outline'}
                                                                 onClick={() => handleFeedback(song, 'dislike')}
                                                                 className={`flex-1 transition-all duration-300 ${feedbackState[song.id] === 'disliked'
-                                                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/50 scale-105 border-red-600 ring-2 ring-red-400/30'
-                                                                        : 'hover:bg-red-50 hover:text-red-600 hover:border-red-300 hover:scale-105 hover:shadow-md hover:shadow-red-200/50'
+                                                                    ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/50 scale-105 border-red-600 ring-2 ring-red-400/30'
+                                                                    : 'hover:bg-red-50 hover:text-red-600 hover:border-red-300 hover:scale-105 hover:shadow-md hover:shadow-red-200/50'
                                                                     }`}
                                                             >
                                                                 <ThumbsDown className={`h-3 w-3 ${feedbackState[song.id] === 'disliked' ? 'fill-current' : ''}`} />
