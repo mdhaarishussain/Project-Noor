@@ -77,7 +77,7 @@ export function VideoPlayer({ video, onWatchComplete, onClose }: VideoPlayerProp
   const [totalWatchTime, setTotalWatchTime] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
 
-  const controlsTimeoutRef = useRef<NodeJS.Timeout>()
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Format time display
   const formatTime = (seconds: number) => {
