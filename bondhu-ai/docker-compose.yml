@@ -1,5 +1,5 @@
 services:
-  # Redis Service - Optimized for Docker networking
+  # Redis Service - Optimized for low-memory Azure VM
   redis:
     image: redis:7-alpine
     container_name: bondhu-redis
@@ -8,24 +8,31 @@ services:
     restart: unless-stopped
     volumes:
       - redis-data:/data
-    command: redis-server --maxmemory 32mb --maxmemory-policy allkeys-lru --save "" --appendonly no --tcp-keepalive 60 --timeout 300
+    # Reduced memory limits for B2s VM (4GB total RAM)
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru --save "" --appendonly no --tcp-keepalive 60 --timeout 300
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
-      interval: 6h
-      timeout: 60s
-      retries: 1
-      start_period: 60s
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - bondhu-network
     deploy:
       resources:
         limits:
-          memory: 48M
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
           cpus: '0.1'
     security_opt:
       - no-new-privileges:true
+    # Fix memory overcommit warning
+    sysctls:
+      - net.core.somaxconn=511
 
-  # Main Application Service
+  # Main Application Service - Optimized for Azure B2s (4GB RAM)
   bondhu-api:
     build:
       context: .
@@ -43,14 +50,14 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ENABLE_REDIS=true
 
-      # Application settings
+      # Application settings - reduced for low memory
       - PYTHONPATH=/app
       - ENVIRONMENT=production
-      - LOG_LEVEL=INFO
-      - ENABLE_RL=${ENABLE_RL:-true}
-      - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-true}
-      - WORKERS=${WORKERS:-2}
-      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-50}
+      - LOG_LEVEL=WARNING
+      - ENABLE_RL=${ENABLE_RL:-false}
+      - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-false}
+      - WORKERS=${WORKERS:-1}
+      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-10}
     env_file:
       - .env
     volumes:
@@ -59,33 +66,34 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      celery-worker:
-        condition: service_started
     restart: unless-stopped
     networks:
       - bondhu-network
     healthcheck:
       test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=10)" ]
-      interval: 12h
-      timeout: 60s
-      retries: 1
-      start_period: 120s
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: '0.2'
+          memory: 1536M
+          cpus: '0.75'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
     security_opt:
       - no-new-privileges:true
 
-  # Celery Worker - Minimal resource usage
+  # Celery Worker - Optimized for Azure B2s VM
   celery-worker:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: bondhu-celery-worker
-    # Use solo pool for Windows/WSL compatibility (prevents SIGKILL)
-    command: celery -A core.celery_app worker --loglevel=info --pool=solo --concurrency=1
+    # Use solo pool for single worker (prevents memory issues)
+    command: celery -A core.celery_app worker --loglevel=warning --pool=solo --concurrency=1 --max-tasks-per-child=50 --time-limit=300 --soft-time-limit=240
     environment:
       # Redis configuration - use Docker service name
       - REDIS_HOST=redis
@@ -93,14 +101,17 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
 
-      # Celery-specific settings for Windows/WSL
+      # Celery-specific settings optimized for low memory
       - FORKED_BY_MULTIPROCESSING=1
       - C_FORCE_ROOT=true
+      - CELERYD_MAX_TASKS_PER_CHILD=50
+      - CELERYD_TASK_TIME_LIMIT=300
+      - CELERYD_TASK_SOFT_TIME_LIMIT=240
 
       # Application settings
       - PYTHONPATH=/app
       - ENVIRONMENT=production
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=WARNING
       - CELERY_WORKER=true
     env_file:
       - .env
@@ -116,8 +127,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 80M
-          cpus: '0.1'
+          memory: 1024M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.15'
     security_opt:
       - no-new-privileges:true
   # Frontend Service - Next.js Application
