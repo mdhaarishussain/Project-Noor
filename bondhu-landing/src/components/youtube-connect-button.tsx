@@ -40,7 +40,6 @@ export function YouTubeConnectButton({
       toast({
         title: "YouTube Connected!",
         description: "Your YouTube account has been successfully connected.",
-        duration: 5000,
       });
       // Clean up URL params
       window.history.replaceState({}, "", window.location.pathname);
@@ -51,7 +50,6 @@ export function YouTubeConnectButton({
         title: "Connection Failed",
         description: errorMsg,
         variant: "destructive",
-        duration: 5000,
       });
       window.history.replaceState({}, "", window.location.pathname);
     }
