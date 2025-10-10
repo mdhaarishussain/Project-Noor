@@ -170,7 +170,7 @@ const PersonalityCard = ({
                     key={question.id}
                     question={{...question, userResponse: responses[question.id]}}
                     questionIndex={qIndex}
-                    totalQuestions={cardData.trait.questions.length}
+                    totalQuestions={cardData.trait?.questions.length || 0}
                     onResponseChange={onResponseChange}
                   />
                 ))}
