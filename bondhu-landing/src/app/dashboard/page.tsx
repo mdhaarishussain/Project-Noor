@@ -30,6 +30,7 @@ import { aiLearningEngine } from "@/lib/ai-learning-engine"
 import { GlowingEffect } from "@/components/ui/glowing-effect"
 import MusicRecommendations from "@/components/music-recommendations"
 
+
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
