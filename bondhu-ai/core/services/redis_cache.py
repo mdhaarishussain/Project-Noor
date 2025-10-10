@@ -40,7 +40,7 @@ class RedisCache:
         Initialize Redis cache with connection pooling.
         
         Args:
-            host: Redis host (default from config)
+            host: Redis host (default from config or 'redis' for Docker)
             port: Redis port (default from config)
             db: Redis database number
             password: Redis password
@@ -52,10 +52,11 @@ class RedisCache:
         try:
             config = get_config()
             
-            # Use provided values or fall back to config/defaults
-            self.host = host or getattr(config.redis if hasattr(config, 'redis') else None, 'host', 'localhost')
-            self.port = port or getattr(config.redis if hasattr(config, 'redis') else None, 'port', 6379)
-            self.password = password or getattr(config.redis if hasattr(config, 'redis') else None, 'password', None)
+            # Use provided values or fall back to config
+            # Priority: explicit param > env var REDIS_HOST > config.redis.host > 'redis' (Docker default)
+            self.host = host or config.redis.host
+            self.port = port or config.redis.port
+            self.password = password or config.redis.password
             
             # Create connection pool for scalability
             self.pool = redis.ConnectionPool(
@@ -73,21 +74,31 @@ class RedisCache:
             
             # Test connection
             self.client.ping()
-            logger.info(f"Redis cache connected: {self.host}:{self.port} (pool size: {max_connections})")
+            logger.info(f"✅ Connected to Redis at {self.host}:{self.port} (pool size: {max_connections})")
             
         except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            logger.warning("Falling back to Redis defaults (localhost:6379)")
+            logger.error(f"❌ Failed to connect to Redis at {self.host}:{self.port}: {e}")
+            logger.warning("⚠️ Falling back to Redis defaults (redis:6379 for Docker, localhost:6379 otherwise)")
+            
+            # Try Docker service name first, then localhost
+            fallback_host = 'redis' if host is None else 'localhost'
             
             # Fallback to basic connection
             self.pool = redis.ConnectionPool(
-                host='localhost',
+                host=fallback_host,
                 port=6379,
                 db=db,
                 max_connections=max_connections,
                 decode_responses=decode_responses,
             )
             self.client = redis.Redis(connection_pool=self.pool)
+            
+            try:
+                self.client.ping()
+                logger.info(f"✅ Connected to Redis at {fallback_host}:6379 (fallback)")
+            except:
+                logger.error(f"❌ Failed to connect to fallback Redis at {fallback_host}:6379")
+                logger.warning("⚠️ Running without Redis cache - performance will be degraded")
         
         # Cache hit/miss statistics
         self.stats = {

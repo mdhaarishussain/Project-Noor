@@ -2,17 +2,15 @@
 
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { Sparkles, Calendar, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface DashboardWelcomeProps {
   userName?: string;
-  lastActive?: string;
   streak?: number;
   wellnessScore?: number;
   compact?: boolean;
 }
 
-export function DashboardWelcome({ userName = "Friend", lastActive, streak = 0, wellnessScore = 0, compact = false }: DashboardWelcomeProps) {
+export function DashboardWelcome({ userName = "Friend", streak = 0, wellnessScore = 0, compact = false }: DashboardWelcomeProps) {
   const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const currentDate = new Date().toLocaleDateString([], { 
     weekday: 'long', 

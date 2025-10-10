@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
-  # Redis Service - Ultra-lightweight for free tier
+  # Redis Service - Optimized for Docker networking
   redis:
     image: redis:7-alpine
     container_name: bondhu-redis
     ports:
-      - "127.0.0.1:6379:6379"
+      - "6379:6379"
     restart: unless-stopped
     volumes:
       - redis-data:/data
@@ -27,23 +25,37 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  # Main Application Service - Free tier optimized
+  # Main Application Service
   bondhu-api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: bondhu-api
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     environment:
-      - REDIS_URL=redis://redis:6379
-      - CELERY_BROKER_URL=redis://redis:6379
-      - CELERY_RESULT_BACKEND=redis://redis:6379
+      # Redis configuration - use Docker service name
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ENABLE_REDIS=true
+      
+      # Application settings
       - PYTHONPATH=/app
       - ENVIRONMENT=production
-      - LOG_LEVEL=warning
+      - LOG_LEVEL=INFO
+      - ENABLE_RL=${ENABLE_RL:-true}
+      - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-true}
+      - WORKERS=${WORKERS:-2}
+      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-50}
     env_file:
       - .env
+    volumes:
+      - ./cache:/app/cache
+      - ./logs:/app/logs
     depends_on:
       redis:
         condition: service_healthy
@@ -70,19 +82,33 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bondhu-celery-worker
-    command: celery -A core.celery_app worker --loglevel=warning --concurrency=1 --max-tasks-per-child=500 --time-limit=180 --soft-time-limit=150 --without-gossip --without-mingle --without-heartbeat
+    # Use solo pool for Windows/WSL compatibility (prevents SIGKILL)
+    command: celery -A core.celery_app worker --loglevel=info --pool=solo --concurrency=1
     environment:
-      - REDIS_URL=redis://redis:6379
-      - CELERY_BROKER_URL=redis://redis:6379
-      - CELERY_RESULT_BACKEND=redis://redis:6379
+      # Redis configuration - use Docker service name
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      
+      # Celery-specific settings for Windows/WSL
+      - FORKED_BY_MULTIPROCESSING=1
+      - C_FORCE_ROOT=true
+      
+      # Application settings
       - PYTHONPATH=/app
       - ENVIRONMENT=production
-      - LOG_LEVEL=warning
+      - LOG_LEVEL=INFO
       - CELERY_WORKER=true
     env_file:
       - .env
+    volumes:
+      - ./cache:/app/cache
+      - ./logs:/app/logs
     depends_on:
       redis:
+        condition: service_healthy
+      bondhu-api:
         condition: service_healthy
     restart: unless-stopped
     networks:

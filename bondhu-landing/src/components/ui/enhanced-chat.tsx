@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Mic, MoreVertical, Heart, Sparkles, Volume2, VolumeX, Copy, ThumbsUp, AlertCircle } from "lucide-react";
+import { Send, Mic, MoreVertical, Sparkles, Volume2, VolumeX, Copy, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { BondhuAvatar } from "@/components/ui/bondhu-avatar";
@@ -34,14 +32,14 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
-  const [conversationContext, setConversationContext] = useState<string[]>([
+  const [conversationContext] = useState<string[]>([
     "mental wellness", "daily goals", "stress management"
   ]);
   const [error, setError] = useState<string | null>(null);
   const [hasPersonalityContext, setHasPersonalityContext] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const [sessionId, setSessionId] = useState<string>(() => generateSessionId()); // Generate session ID once
+  const sessionId = useRef<string>(generateSessionId()); // Use ref instead of state since it doesn't change
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -140,7 +138,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
 
     try {
       // Call real API with session ID for conversation continuity
-      const response = await chatApi.sendMessage(userId, newMessage, sessionId);
+      const response = await chatApi.sendMessage(userId, newMessage, sessionId.current);
       
       const aiMessage: Message = {
         id: Date.now() + 1,
