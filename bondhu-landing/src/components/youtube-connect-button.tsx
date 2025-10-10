@@ -40,7 +40,6 @@ export function YouTubeConnectButton({
       toast({
         title: "YouTube Connected!",
         description: "Your YouTube account has been successfully connected.",
-        duration: 5000,
       });
       // Clean up URL params
       window.history.replaceState({}, "", window.location.pathname);
@@ -51,7 +50,6 @@ export function YouTubeConnectButton({
         title: "Connection Failed",
         description: errorMsg,
         variant: "destructive",
-        duration: 5000,
       });
       window.history.replaceState({}, "", window.location.pathname);
     }
@@ -70,7 +68,10 @@ export function YouTubeConnectButton({
       setError(null);
       
       const response = await fetch(
-        `http://localhost:8000/api/v1/auth/youtube/status/${userId}`
+        `http://localhost:8000/api/v1/auth/youtube/status/${userId}`,
+        { 
+          signal: AbortSignal.timeout(3000) // 3 second timeout
+        }
       );
       
       if (!response.ok) {
@@ -85,8 +86,10 @@ export function YouTubeConnectButton({
         await handleRefreshToken();
       }
     } catch (err) {
-      console.error("Failed to check YouTube connection status:", err);
-      setError(err instanceof Error ? err.message : "Failed to check connection");
+      // Silently handle backend unavailability - just show as not connected
+      console.warn("Backend unavailable - YouTube integration disabled:", err);
+      setStatus({ connected: false });
+      setError(null); // Don't show error to user
     } finally {
       setLoading(false);
     }
@@ -98,7 +101,10 @@ export function YouTubeConnectButton({
       setError(null);
       
       const response = await fetch(
-        `http://localhost:8000/api/v1/auth/youtube/connect?user_id=${userId}`
+        `http://localhost:8000/api/v1/auth/youtube/connect?user_id=${userId}`,
+        { 
+          signal: AbortSignal.timeout(3000) // 3 second timeout
+        }
       );
       
       if (!response.ok) {
@@ -111,10 +117,14 @@ export function YouTubeConnectButton({
       window.location.href = data.authorization_url;
     } catch (err) {
       console.error("Failed to connect YouTube:", err);
-      setError(err instanceof Error ? err.message : "Failed to connect");
+      const errorMessage = err instanceof Error && err.name === 'TimeoutError' 
+        ? "Backend server is not available. Please start the backend to use YouTube integration."
+        : "Failed to connect. Please try again.";
+      
+      setError(errorMessage);
       toast({
-        title: "Connection Error",
-        description: "Failed to start YouTube connection. Please try again.",
+        title: "Backend Unavailable",
+        description: errorMessage,
         variant: "destructive",
       });
       setConnecting(false);
