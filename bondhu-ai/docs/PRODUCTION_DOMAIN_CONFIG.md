@@ -25,6 +25,49 @@
 
 ---
 
+## ⏱️ Production Deployment Timeline
+
+**Total Time: ~5 hours** (mostly waiting for DNS propagation)
+
+```
+Hour 0:     Add DNS A record at registrar
+            - Type: A, Name: api, Value: 57.159.29.168, TTL: 7200
+            ⏳ Start DNS propagation (2-4 hours)
+
+Hour 0-4:   OPTIONAL: Test Spotify with Ngrok while waiting
+            - Install ngrok (2 min)
+            - Get temporary HTTPS URL
+            - Test Spotify OAuth immediately
+            ✅ Spotify working (temporary)
+
+Hour 2-4:   Check DNS propagation
+            - nslookup api.bondhu.tech 8.8.8.8
+            - Wait until shows: 57.159.29.168
+            ✅ DNS propagated
+
+Hour 4:     Install SSL (Caddy or Nginx)
+            - Caddy: 10 minutes (2-line config) ⭐ RECOMMENDED
+            - Nginx: 20 minutes (35+ line config)
+            ✅ SSL certificate obtained automatically
+
+Hour 4.5:   Update all configurations
+            - Backend .env (5 min)
+            - Vercel environment variables (2 min)
+            - OAuth providers: Spotify, Google (5 min)
+            - Azure NSG ports 80, 443 (2 min)
+            ✅ All configs updated
+
+Hour 5:     Test everything
+            - Frontend: https://bondhu.tech
+            - Backend: https://api.bondhu.tech
+            - Spotify OAuth: Working with HTTPS
+            ✅ Production ready! 🎉
+```
+
+**Key Constraint:** DNS propagation (2-4 hours) due to TTL 7200 requirement
+
+---
+
 ## 📋 Complete Checklist
 
 ### Step 1: Get Your URLs
@@ -46,6 +89,9 @@ Example:
 Frontend: https://bondhu.tech
 Backend:  https://api.bondhu.tech (with SSL certificate)
           OR http://57.159.29.168:8000 (without SSL - not recommended for production)
+
+Note: DNS A record for api.bondhu.tech requires TTL 7200 (2 hours)
+      Allow 2-4 hours for DNS propagation before setting up SSL
 ```
 
 ---
@@ -272,39 +318,110 @@ If you need to update this, edit the file and restart containers.
 
 ## 🚀 Deployment Steps (In Order)
 
-### Step 1: Get Your URLs
+### Step 1: Configure DNS (Do This First - 2-4 Hour Wait)
 ```bash
-# 1. Get Vercel URL
-→ Go to vercel.com/dashboard
-→ Copy deployment URL
+# 1. Add DNS A record at your domain registrar
+# Type: A
+# Name: api
+# Value: 57.159.29.168 (your Azure VM IP)
+# TTL: 7200 (2 hours - minimum required by registrar)
 
-# 2. Get Azure VM IP
-→ Go to portal.azure.com
-→ Navigate to your VM
-→ Copy Public IP address
+# 2. Wait 2-4 hours for DNS propagation
+# TTL 7200 = 2 hours cache time
+# Full global propagation may take up to 4 hours
+
+# 3. Verify DNS propagation (check every 30 minutes)
+# Check with Google DNS (usually fastest):
+nslookup api.bondhu.tech 8.8.8.8
+# Should return: 57.159.29.168
+
+# Check with Cloudflare DNS:
+nslookup api.bondhu.tech 1.1.1.1
+# Should return: 57.159.29.168
+
+# Check online from multiple locations:
+# Visit: https://dnschecker.org/#A/api.bondhu.tech
+# Should show 57.159.29.168 with green checkmarks worldwide
+
+# IMPORTANT: Only proceed with SSL setup once DNS shows correct IP!
 ```
 
-### Step 2: Setup SSL Certificate (REQUIRED for Spotify)
+### Step 1b: OPTIONAL - Test Spotify with Ngrok While Waiting
 ```bash
-# See detailed guide: SETUP_SUBDOMAIN_SSL.md
+# While DNS propagates, you can test Spotify immediately with Ngrok
+
+# SSH to Azure VM
+ssh Bondhu_backend@57.159.29.168
+
+# Install Ngrok (takes 2 minutes)
+wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+tar -xvzf ngrok-v3-stable-linux-amd64.tgz
+sudo mv ngrok /usr/local/bin/
+
+# Get free auth token from: https://dashboard.ngrok.com/get-started/setup/linux
+ngrok config add-authtoken <YOUR_TOKEN>
+
+# Start tunnel (creates instant HTTPS URL)
+ngrok http 8000
+# Copy the HTTPS URL: https://abc123.ngrok-free.app
+
+# Update Spotify dashboard with this ngrok URL temporarily
+# Later, replace with https://api.bondhu.tech after SSL setup
+
+# See SPOTIFY_HTTPS_FIX.md for complete guide
+```
+
+### Step 2: Setup SSL Certificate (AFTER DNS Propagates)
+```bash
+# IMPORTANT: Only do this after Step 1 DNS shows 57.159.29.168!
+
+# OPTION A: Caddy (RECOMMENDED - Easiest, 2-line config)
+# See detailed guide: SETUP_CADDY_SSL.md
+
 # Quick summary:
-
-# 1. Add DNS A record at your domain registrar
-# Type: A, Name: api, Value: 57.159.29.168
-
-# 2. Wait 10 minutes for DNS propagation
-nslookup api.bondhu.tech
-
-# 3. SSH and install Nginx + Certbot
 ssh Bondhu_backend@57.159.29.168
 sudo apt update
+
+# Install Caddy
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy -y
+
+# Configure Caddy (just 2 lines!)
+sudo nano /etc/caddy/Caddyfile
+# Replace everything with:
+# api.bondhu.tech {
+#     reverse_proxy localhost:8000
+# }
+
+# Start Caddy (SSL certificate obtained automatically!)
+sudo systemctl reload caddy
+sudo systemctl enable caddy
+
+# Check logs to see certificate being obtained
+sudo journalctl -u caddy -f
+# Press Ctrl+C to exit
+
+# That's it! Caddy automatically:
+# - Gets SSL certificate from Let's Encrypt
+# - Configures HTTPS
+# - Redirects HTTP to HTTPS
+# - Enables HTTP/2
+# - Auto-renews certificate every 90 days
+
+# OR
+
+# OPTION B: Nginx + Certbot (Traditional, 35+ lines config)
+# See detailed guide: SETUP_SUBDOMAIN_SSL.md
+
+# Install Nginx + Certbot
 sudo apt install nginx certbot python3-certbot-nginx -y
 
-# 4. Configure Nginx reverse proxy
+# Configure Nginx reverse proxy
 sudo nano /etc/nginx/sites-available/bondhu-api
-# (See SETUP_SUBDOMAIN_SSL.md for full config)
+# (See SETUP_SUBDOMAIN_SSL.md for full 35+ line config)
 
-# 5. Get free SSL certificate from Let's Encrypt
+# Get free SSL certificate from Let's Encrypt
 sudo certbot --nginx -d api.bondhu.tech
 # Follow prompts, choose redirect HTTP to HTTPS
 ```
