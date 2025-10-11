@@ -44,7 +44,8 @@
 Example:
 ```
 Frontend: https://bondhu.tech
-Backend:  http://57.159.29.168:8000
+Backend:  https://api.bondhu.tech (with SSL certificate)
+          OR http://57.159.29.168:8000 (without SSL - not recommended for production)
 ```
 
 ---
@@ -61,7 +62,11 @@ Add/Update these:
 
 ```bash
 # Backend API URL - CRITICAL
-NEXT_PUBLIC_API_URL=http://57.159.29.168:8000
+# Production (with SSL - RECOMMENDED):
+NEXT_PUBLIC_API_URL=https://api.bondhu.tech
+
+# OR for testing without SSL (not recommended):
+# NEXT_PUBLIC_API_URL=http://57.159.29.168:8000
 
 # Supabase (already correct, but verify)
 NEXT_PUBLIC_SUPABASE_URL=https://eilvtjkqmvmhkfzocrzs.supabase.co
@@ -88,8 +93,11 @@ Update line 6:
 # Before:
 NEXT_PUBLIC_API_URL=http://localhost:8000
 
-# After (use Azure VM IP):
-NEXT_PUBLIC_API_URL=http://<YOUR-AZURE-VM-IP>:8000
+# After (production with SSL):
+NEXT_PUBLIC_API_URL=https://api.bondhu.tech
+
+# OR without SSL (testing only):
+# NEXT_PUBLIC_API_URL=http://57.159.29.168:8000
 ```
 
 **Note:** Only update this if you want local development to use production backend. Otherwise keep localhost for local testing.
@@ -107,6 +115,7 @@ https://bondhu.tech
 ```
 https://bondhu.tech/auth/callback
 https://bondhu.tech/**
+https://api.bondhu.tech/**
 https://*.vercel.app/auth/callback
 https://*.vercel.app/**
 http://localhost:3000/auth/callback
@@ -124,7 +133,7 @@ Find your OAuth 2.0 Client ID and add **Authorized redirect URIs:**
 https://eilvtjkqmvmhkfzocrzs.supabase.co/auth/v1/callback
 
 # Backend callback (for YouTube integration)
-http://57.159.29.168:8000/api/v1/auth/youtube/callback
+https://api.bondhu.tech/api/v1/auth/youtube/callback
 
 # Frontend domain
 https://bondhu.tech
@@ -169,17 +178,18 @@ nano .env
 
 ```bash
 # Google OAuth Redirect URI (for YouTube integration)
-GOOGLE_REDIRECT_URI=http://57.159.29.168:8000/api/v1/auth/youtube/callback
+# Production with SSL:
+GOOGLE_REDIRECT_URI=https://api.bondhu.tech/api/v1/auth/youtube/callback
 
-# Spotify Redirect URI (if using Spotify)
-SPOTIFY_REDIRECT_URI=http://57.159.29.168:8000/api/v1/agents/music/callback
+# Spotify Redirect URI (REQUIRES HTTPS)
+SPOTIFY_REDIRECT_URI=https://api.bondhu.tech/api/v1/agents/music/callback
 
 # API Configuration (can stay localhost since it's running inside Docker)
 API_HOST=localhost
 API_PORT=8000
 
 # IMPORTANT: Add CORS allowed origins for your frontend
-CORS_ORIGINS=https://bondhu.tech,https://*.vercel.app,http://localhost:3000
+CORS_ORIGINS=https://bondhu.tech,https://api.bondhu.tech,https://*.vercel.app,http://localhost:3000
 ```
 
 **Save and restart containers:**
@@ -192,9 +202,26 @@ docker-compose up -d
 
 **Location:** Azure Portal → Virtual Machines → Your VM → Networking → Network Settings
 
-**Add Inbound Port Rule:**
+**Add Inbound Port Rules:**
 
 ```
+# Rule 1: Allow HTTPS (for SSL traffic)
+Priority: 998
+Name: AllowHTTPS
+Port: 443
+Protocol: TCP
+Source: Any
+Action: Allow
+
+# Rule 2: Allow HTTP (for Let's Encrypt certificate renewal)
+Priority: 999
+Name: AllowHTTP
+Port: 80
+Protocol: TCP
+Source: Any
+Action: Allow
+
+# Rule 3: Allow Docker API (only if you need direct access without SSL)
 Priority: 1000
 Name: AllowAPI
 Port: 8000
@@ -203,15 +230,17 @@ Source: Any (or restrict to specific IPs for security)
 Action: Allow
 ```
 
-This opens port 8000 so your Vercel frontend can access the backend API.
+**Note:** With SSL setup using Nginx, external traffic comes through port 443 (HTTPS), and Nginx forwards it internally to port 8000.
 
-**Test if port is open:**
+**Test if ports are open:**
 ```bash
-# From your local machine:
-curl http://<your-azure-vm-ip>:8000/health
+# Test HTTPS (after SSL setup):
+curl https://api.bondhu.tech/health
+# Should return: {"status":"healthy"}
 
-# Should return:
-{"status":"healthy"}
+# Test direct API (if port 8000 is open):
+curl http://57.159.29.168:8000/health
+# Should return: {"status":"healthy"}
 ```
 
 #### 3. CORS Configuration in Backend Code
@@ -228,6 +257,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://bondhu.tech",  # Your custom domain
+        "https://api.bondhu.tech",  # Your API subdomain
         "https://*.vercel.app",  # All Vercel preview deployments
     ],
     allow_credentials=True,
@@ -254,9 +284,34 @@ If you need to update this, edit the file and restart containers.
 → Copy Public IP address
 ```
 
-### Step 2: Update Backend (Azure VM)
+### Step 2: Setup SSL Certificate (REQUIRED for Spotify)
 ```bash
-# SSH into VM
+# See detailed guide: SETUP_SUBDOMAIN_SSL.md
+# Quick summary:
+
+# 1. Add DNS A record at your domain registrar
+# Type: A, Name: api, Value: 57.159.29.168
+
+# 2. Wait 10 minutes for DNS propagation
+nslookup api.bondhu.tech
+
+# 3. SSH and install Nginx + Certbot
+ssh Bondhu_backend@57.159.29.168
+sudo apt update
+sudo apt install nginx certbot python3-certbot-nginx -y
+
+# 4. Configure Nginx reverse proxy
+sudo nano /etc/nginx/sites-available/bondhu-api
+# (See SETUP_SUBDOMAIN_SSL.md for full config)
+
+# 5. Get free SSL certificate from Let's Encrypt
+sudo certbot --nginx -d api.bondhu.tech
+# Follow prompts, choose redirect HTTP to HTTPS
+```
+
+### Step 3: Update Backend (Azure VM)
+```bash
+# SSH into VM (if not already)
 ssh Bondhu_backend@57.159.29.168
 
 # Navigate to project
@@ -268,10 +323,10 @@ git pull origin main
 # Edit .env file
 nano .env
 
-# Update these lines:
-GOOGLE_REDIRECT_URI=http://57.159.29.168:8000/api/v1/auth/youtube/callback
-SPOTIFY_REDIRECT_URI=http://57.159.29.168:8000/api/v1/agents/music/callback
-CORS_ORIGINS=https://bondhu.tech,https://*.vercel.app,http://localhost:3000
+# Update these lines (MUST use HTTPS for Spotify):
+GOOGLE_REDIRECT_URI=https://api.bondhu.tech/api/v1/auth/youtube/callback
+SPOTIFY_REDIRECT_URI=https://api.bondhu.tech/api/v1/agents/music/callback
+CORS_ORIGINS=https://bondhu.tech,https://api.bondhu.tech,https://*.vercel.app,http://localhost:3000
 
 # Save (Ctrl+X, Y, Enter)
 
@@ -279,30 +334,35 @@ CORS_ORIGINS=https://bondhu.tech,https://*.vercel.app,http://localhost:3000
 docker-compose down
 docker-compose up -d
 
-# Test API
+# Test API (internally)
 curl http://localhost:8000/health
+
+# Test HTTPS (externally)
+curl https://api.bondhu.tech/health
 ```
 
-### Step 3: Open Port 8000 in Azure NSG
+### Step 4: Open Ports in Azure NSG
 ```bash
 → Azure Portal
 → Virtual Machines → Your VM
 → Networking → Network Settings
-→ Add inbound port rule
-→ Port: 8000, Protocol: TCP, Source: Any
+→ Add THREE inbound port rules:
+   1. Port 443 (HTTPS) - Priority 998
+   2. Port 80 (HTTP for cert renewal) - Priority 999
+   3. Port 8000 (Docker API - optional) - Priority 1000
 → Save
 ```
 
-### Step 4: Update Vercel Environment Variables
+### Step 5: Update Vercel Environment Variables
 ```bash
 → vercel.com/dashboard
 → Your project → Settings → Environment Variables
-→ Add/Update: NEXT_PUBLIC_API_URL=http://57.159.29.168:8000
+→ Add/Update: NEXT_PUBLIC_API_URL=https://api.bondhu.tech
 → Save
 → Deployments → Redeploy latest
 ```
 
-### Step 5: Update Supabase OAuth URLs
+### Step 6: Update Supabase OAuth URLs
 ```bash
 → app.supabase.com/project/eilvtjkqmvmhkfzocrzs
 → Authentication → URL Configuration
@@ -311,28 +371,41 @@ curl http://localhost:8000/health
 → Save
 ```
 
-### Step 6: Update Google OAuth Redirect URIs
+### Step 7: Update Google OAuth Redirect URIs
 ```bash
 → console.cloud.google.com
 → APIs & Services → Credentials
 → OAuth 2.0 Client ID
 → Authorized redirect URIs:
    - Add: https://eilvtjkqmvmhkfzocrzs.supabase.co/auth/v1/callback
-   - Add: http://57.159.29.168:8000/api/v1/auth/youtube/callback
+   - Add: https://api.bondhu.tech/api/v1/auth/youtube/callback
    - Add: https://bondhu.tech/auth/callback
 → Save
 ```
 
-### Step 7: Test Everything
+### Step 8: Update Spotify OAuth Redirect URI
 ```bash
-# Test backend API
-curl http://57.159.29.168:8000/health
+→ developer.spotify.com/dashboard
+→ Your App → Edit Settings
+→ Redirect URIs:
+   - Add: https://api.bondhu.tech/api/v1/agents/music/callback
+→ Save
+```
+
+### Step 9: Test Everything
+```bash
+# Test backend API (HTTPS)
+curl https://api.bondhu.tech/health
+
+# Test SSL certificate
+openssl s_client -connect api.bondhu.tech:443 -servername api.bondhu.tech
 
 # Test frontend
 → Open: https://bondhu.tech
 → Try Google sign-in
 → Check if chat works (requires backend)
 → Check if YouTube connect works (requires backend)
+→ Check if Spotify connect works (requires HTTPS backend)
 ```
 
 ---
@@ -343,20 +416,24 @@ After configuration, verify:
 
 ### Backend Tests (from your local machine)
 ```bash
-# 1. Health check
-curl http://57.159.29.168:8000/health
+# 1. Health check (HTTPS)
+curl https://api.bondhu.tech/health
 # Expected: {"status":"healthy"}
 
-# 2. CORS test
+# 2. SSL certificate test
+curl -vI https://api.bondhu.tech 2>&1 | grep -E "SSL|TLS|subject|issuer"
+# Expected: Valid certificate from Let's Encrypt
+
+# 3. CORS test
 curl -H "Origin: https://bondhu.tech" \
      -H "Access-Control-Request-Method: POST" \
      -H "Access-Control-Request-Headers: Content-Type" \
-     -X OPTIONS http://57.159.29.168:8000/api/v1/chat/send
+     -X OPTIONS https://api.bondhu.tech/api/v1/chat/send
 # Expected: Headers with Access-Control-Allow-Origin
 
-# 3. API docs
-→ Open: http://57.159.29.168:8000/docs
-# Should see FastAPI Swagger UI
+# 4. API docs
+→ Open: https://api.bondhu.tech/docs
+# Should see FastAPI Swagger UI with valid SSL
 ```
 
 ### Frontend Tests
@@ -379,78 +456,75 @@ curl -H "Origin: https://bondhu.tech" \
 → Click "Connect YouTube"
 → Should redirect to Google OAuth
 → Should connect successfully
+
+# 4. Spotify Connect (requires HTTPS backend)
+→ Go to settings
+→ Click "Connect Spotify"
+→ Should redirect to Spotify OAuth
+→ Should connect successfully
 ```
 
 ---
 
 ## 🔒 Security Considerations
 
-### Current Setup (Development - HTTP)
+### ✅ Recommended Production Setup (With SSL)
 ```
 Frontend: HTTPS (Vercel provides free SSL)
-Backend:  HTTP (no SSL certificate)
-          ⚠️ Browser may block mixed content (HTTPS→HTTP)
+Backend:  HTTPS (Let's Encrypt SSL + Nginx reverse proxy)
+          
+URL Structure:
+- Frontend: https://bondhu.tech
+- Backend:  https://api.bondhu.tech
 ```
 
-### Recommended Production Setup
-```
-Frontend: HTTPS (Vercel)
-Backend:  HTTPS (SSL certificate + reverse proxy)
+### 🔐 SSL Certificate Setup (REQUIRED for Spotify OAuth)
 
-Options:
-1. Use Azure Application Gateway (Azure's load balancer with SSL)
-2. Use Nginx reverse proxy with Let's Encrypt SSL
-3. Use Cloudflare in front of Azure VM
-```
+**Why HTTPS is Required:**
+- ✅ Spotify OAuth requires HTTPS redirect URIs
+- ✅ Prevents browser mixed content warnings
+- ✅ Secures API communication
+- ✅ Professional and SEO-friendly
 
-### Quick Fix: Nginx Reverse Proxy with SSL (Optional)
+**Recommended Solution: Let's Encrypt SSL (Free)**
 
-If you want HTTPS for your backend:
+See detailed guide: **SETUP_SUBDOMAIN_SSL.md**
 
+**Quick Summary:**
 ```bash
-# On Azure VM
-sudo apt install nginx certbot python3-certbot-nginx
+# 1. Add DNS A record
+Type: A, Name: api, Value: 57.159.29.168
 
-# Get SSL certificate (requires domain name, not IP)
-sudo certbot --nginx -d api.yourdomain.com
+# 2. Install Nginx + Certbot
+sudo apt install nginx certbot python3-certbot-nginx -y
 
-# Configure Nginx to proxy to Docker
+# 3. Configure Nginx
 sudo nano /etc/nginx/sites-available/bondhu-api
+# (Full config in SETUP_SUBDOMAIN_SSL.md)
 
-# Add:
-server {
-    listen 80;
-    server_name api.yourdomain.com;
-    return 301 https://$server_name$request_uri;
-}
+# 4. Get free SSL certificate
+sudo certbot --nginx -d api.bondhu.tech
+# Automatically:
+# - Gets certificate from Let's Encrypt
+# - Configures HTTPS
+# - Sets up auto-renewal (every 90 days)
+# - Redirects HTTP to HTTPS
 
-server {
-    listen 443 ssl;
-    server_name api.yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/api.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-
-# Enable and restart
-sudo ln -s /etc/nginx/sites-available/bondhu-api /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
+# 5. Update all URLs to use https://api.bondhu.tech
 ```
 
-Then update your Vercel env to use: `https://api.yourdomain.com`
+**Alternative Solutions:**
+- **Ngrok** (testing only): See SPOTIFY_HTTPS_FIX.md
+- **Cloudflare Tunnel**: See CLOUDFLARE_TUNNEL_SETUP.md
+- **Azure Application Gateway**: $125/month (not recommended for small projects)
+
+**Cost Comparison:**
+```
+Let's Encrypt:         $0/month ✅ RECOMMENDED
+Cloudflare Tunnel:     $0/month (with Cloudflare account)
+Azure App Gateway:     ~$125/month
+Azure Front Door:      ~$35/month + data transfer
+```
 
 ---
 
@@ -464,16 +538,17 @@ Then update your Vercel env to use: `https://api.yourdomain.com`
 
 | Location | Variable/Setting | New Value |
 |----------|-----------------|-----------|
-| **Vercel Env Vars** | `NEXT_PUBLIC_API_URL` | `http://57.159.29.168:8000` |
-| **Backend .env** | `GOOGLE_REDIRECT_URI` | `http://57.159.29.168:8000/api/v1/auth/youtube/callback` |
-| **Backend .env** | `SPOTIFY_REDIRECT_URI` | `http://57.159.29.168:8000/api/v1/agents/music/callback` |
-| **Backend .env** | `CORS_ORIGINS` | `https://bondhu.tech,https://*.vercel.app` |
+| **Vercel Env Vars** | `NEXT_PUBLIC_API_URL` | `https://api.bondhu.tech` |
+| **Backend .env** | `GOOGLE_REDIRECT_URI` | `https://api.bondhu.tech/api/v1/auth/youtube/callback` |
+| **Backend .env** | `SPOTIFY_REDIRECT_URI` | `https://api.bondhu.tech/api/v1/agents/music/callback` |
+| **Backend .env** | `CORS_ORIGINS` | `https://bondhu.tech,https://api.bondhu.tech,https://*.vercel.app` |
 | **Supabase Site URL** | Site URL | `https://bondhu.tech` |
 | **Supabase Redirects** | Redirect URLs | `https://bondhu.tech/auth/callback` + wildcards |
-| **Google OAuth** | Authorized URIs | `http://57.159.29.168:8000/api/v1/auth/youtube/callback` |
+| **Google OAuth** | Authorized URIs | `https://api.bondhu.tech/api/v1/auth/youtube/callback` |
 | **Google OAuth** | Authorized URIs | `https://eilvtjkqmvmhkfzocrzs.supabase.co/auth/v1/callback` |
 | **Google OAuth** | Authorized URIs | `https://bondhu.tech/auth/callback` |
-| **Azure NSG** | Inbound Port Rule | Port 8000, TCP, Allow |
+| **Spotify OAuth** | Redirect URIs | `https://api.bondhu.tech/api/v1/agents/music/callback` |
+| **Azure NSG** | Inbound Port Rules | Port 443 (HTTPS), Port 80 (HTTP), Port 8000 (optional) |
 
 ---
 
@@ -486,20 +561,27 @@ Then update your Vercel env to use: `https://api.yourdomain.com`
 **Check:**
 ```bash
 # 1. Is backend running?
-ssh Bondhu_backend@<VM-IP>
+ssh Bondhu_backend@57.159.29.168
 docker-compose ps
 # All should show "Up (healthy)"
 
-# 2. Is port 8000 accessible?
-curl http://<VM-IP>:8000/health
+# 2. Is HTTPS accessible?
+curl https://api.bondhu.tech/health
 # Should return {"status":"healthy"}
 
-# 3. Is NSG rule configured?
-→ Azure Portal → VM → Networking
-→ Verify port 8000 is allowed
+# 3. Is SSL certificate valid?
+curl -vI https://api.bondhu.tech 2>&1 | grep -E "SSL|subject"
+# Should show Let's Encrypt certificate
 
-# 4. Check backend logs
+# 4. Is NSG configured?
+→ Azure Portal → VM → Networking
+→ Verify ports 443, 80, and 8000 are allowed
+
+# 5. Check backend logs
 docker-compose logs -f bondhu-api
+
+# 6. Check Nginx logs
+sudo tail -f /var/log/nginx/error.log
 ```
 
 ### Issue: CORS errors in browser console
@@ -509,12 +591,12 @@ docker-compose logs -f bondhu-api
 **Fix:**
 ```bash
 # Update backend .env
-ssh Bondhu_backend@<VM-IP>
+ssh Bondhu_backend@57.159.29.168
 cd ~/Project-Noor/bondhu-ai
 nano .env
 
-# Add/update:
-CORS_ORIGINS=https://bondhu-landing.vercel.app,https://*.vercel.app,http://localhost:3000
+# Add/update (include api.bondhu.tech):
+CORS_ORIGINS=https://bondhu.tech,https://api.bondhu.tech,https://*.vercel.app,http://localhost:3000
 
 # Restart
 docker-compose restart bondhu-api
@@ -540,36 +622,48 @@ docker-compose restart bondhu-api
 
 ## 🎯 Quick Start Commands
 
-**Replace `<VM-IP>` with your actual Azure VM public IP address!**
+**Complete production setup with HTTPS:**
 
 ```bash
-# 1. Update backend
+# 1. Setup SSL certificate (see SETUP_SUBDOMAIN_SSL.md for details)
+# - Add DNS A record: api.bondhu.tech → 57.159.29.168
+# - Install Nginx + Certbot
+# - Get Let's Encrypt certificate
+
+# 2. Update backend
 ssh Bondhu_backend@57.159.29.168
 cd ~/Project-Noor/bondhu-ai
 nano .env
-# Update GOOGLE_REDIRECT_URI, SPOTIFY_REDIRECT_URI, and CORS_ORIGINS
+# Update to use HTTPS URLs:
+# GOOGLE_REDIRECT_URI=https://api.bondhu.tech/api/v1/auth/youtube/callback
+# SPOTIFY_REDIRECT_URI=https://api.bondhu.tech/api/v1/agents/music/callback
+# CORS_ORIGINS=https://bondhu.tech,https://api.bondhu.tech,https://*.vercel.app
 docker-compose down && docker-compose up -d
 
-# 2. Test backend
-curl http://57.159.29.168:8000/health
+# 3. Test backend HTTPS
+curl https://api.bondhu.tech/health
 
-# 3. Update Vercel
+# 4. Update Vercel
 → vercel.com → Your Project → Settings → Environment Variables
-→ NEXT_PUBLIC_API_URL = http://57.159.29.168:8000
+→ NEXT_PUBLIC_API_URL = https://api.bondhu.tech
 → Redeploy
 
-# 4. Update Supabase
+# 5. Update Supabase
 → app.supabase.com → Authentication → URL Configuration
 → Site URL: https://bondhu.tech
-→ Add redirect URLs
+→ Add redirect URLs (including https://api.bondhu.tech/**)
 
-# 5. Update Google OAuth
+# 6. Update Google OAuth
 → console.cloud.google.com → Credentials
-→ Add redirect URIs
+→ Update redirect URI to: https://api.bondhu.tech/api/v1/auth/youtube/callback
 
-# 6. Test frontend
+# 7. Update Spotify OAuth
+→ developer.spotify.com/dashboard
+→ Add redirect URI: https://api.bondhu.tech/api/v1/agents/music/callback
+
+# 8. Test frontend
 → Open: https://bondhu.tech
-→ Test sign-in and features
+→ Test sign-in, chat, YouTube connect, and Spotify connect
 ```
 
 Done! 🎉
