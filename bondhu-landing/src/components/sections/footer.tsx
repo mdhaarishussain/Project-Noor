@@ -62,6 +62,8 @@ export function Footer() {
               <h4 className="font-semibold mb-3">Stay Updated</h4>
               <div className="flex space-x-2">
                 <Input 
+                  id="newsletter-email"
+                  name="email"
                   placeholder="Enter your email" 
                   className="flex-1"
                   type="email"
