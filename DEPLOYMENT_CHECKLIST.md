@@ -1,382 +1,762 @@
-# ✅ Production Deployment Checklist - Vercel + Azure# ✅ Conversational Memory System - Deployment Checklist
+# ✅ Production Deployment Checklist# ✅ Production Deployment Checklist - Vercel + Azure# ✅ Conversational Memory System - Deployment Checklist
 
 
 
-## 🎯 Quick Reference - Fill These In First!**Date**: October 7, 2025  
+## 🎯 Your Production URLs
 
-**Status**: Ready for Deployment  
 
-```**Estimated Setup Time**: 15 minutes
+
+```## 🎯 Quick Reference - Fill These In First!**Date**: October 7, 2025  
 
 ┌─────────────────────────────────────────────────────────────┐
 
-│ YOUR PRODUCTION URLS                                        │---
+│                                                             │**Status**: Ready for Deployment  
 
-├─────────────────────────────────────────────────────────────┤
+│  FRONTEND: https://bondhu.tech                              │
 
-│                                                             │## 📋 PRE-DEPLOYMENT CHECKLIST
+│                                                             │```**Estimated Setup Time**: 15 minutes
 
-│ FRONTEND (Vercel):                                          │
+│  BACKEND:  http://57.159.29.168:8000                       │
 
-│ https://______________________.vercel.app                   │### Files Verification
+│                                                             │┌─────────────────────────────────────────────────────────────┐
 
-│                                                             │
+└─────────────────────────────────────────────────────────────┘
 
-│ BACKEND (Azure VM):                                         │- [x] **Core Memory Modules Created**
-
-│ http://___.___.___.___ :8000                               │  - [x] `bondhu-ai/core/memory/__init__.py`
-
-│                                                             │  - [x] `bondhu-ai/core/memory/conversation_memory.py`
-
-│ CUSTOM DOMAIN (optional):                                   │  - [x] `bondhu-ai/core/memory/memory_index.py`
-
-│ https://________________________                            │  - [x] `bondhu-ai/core/memory/memory_retriever.py`
-
-│                                                             │
-
-└─────────────────────────────────────────────────────────────┘- [x] **API & Tasks Created**
-
-```  - [x] `bondhu-ai/api/routes/memory.py`
-
-  - [x] `bondhu-ai/core/tasks/memory_tasks.py`
-
----
-
-- [x] **Database Schema Created**
-
-## 📋 Configuration Steps (In Order)  - [x] `bondhu-ai/database/conversational_memory_schema.sql`
+```│ YOUR PRODUCTION URLS                                        │---
 
 
 
-### ⚙️ STEP 1: Backend (Azure VM) Configuration- [x] **Integration Updated**
-
-  - [x] `bondhu-ai/api/routes/chat.py` (memory integration)
-
-**Time: 5 minutes | SSH Required**  - [x] `bondhu-ai/main.py` (memory router added)
+---├─────────────────────────────────────────────────────────────┤
 
 
 
-```bash- [x] **Documentation Created**
+## 📋 Configuration Steps (In Order)│                                                             │## 📋 PRE-DEPLOYMENT CHECKLIST
 
-# SSH into your VM  - [x] `CONVERSATIONAL_MEMORY_COMPLETE_GUIDE.md`
 
-ssh Bondhu_backend@<your-vm-ip>  - [x] `MEMORY_SYSTEM_QUICK_SETUP.md`
 
-cd ~/Project-Noor/bondhu-ai  - [x] `MEMORY_SYSTEM_VISUAL_ARCHITECTURE.md`
+### ⚙️ STEP 1: Backend (Azure VM) Configuration│ FRONTEND (Vercel):                                          │
 
-```  - [x] `MEMORY_SYSTEM_IMPLEMENTATION_COMPLETE.md`
 
-  - [x] This checklist file
 
-#### 1.1: Update `.env` File
+**Time: 5 minutes | SSH Required**│ https://______________________.vercel.app                   │### Files Verification
 
-- [ ] Edit configuration file:---
+
+
+```bash│                                                             │
+
+# SSH into your VM
+
+ssh Bondhu_backend@57.159.29.168│ BACKEND (Azure VM):                                         │- [x] **Core Memory Modules Created**
+
+cd ~/Project-Noor/bondhu-ai
+
+```│ http://___.___.___.___ :8000                               │  - [x] `bondhu-ai/core/memory/__init__.py`
+
+
+
+#### 1.1: Update `.env` File│                                                             │  - [x] `bondhu-ai/core/memory/conversation_memory.py`
+
+- [ ] Edit configuration file:
+
+  ```bash│ CUSTOM DOMAIN (optional):                                   │  - [x] `bondhu-ai/core/memory/memory_index.py`
+
+  nano .env
+
+  ```│ https://________________________                            │  - [x] `bondhu-ai/core/memory/memory_retriever.py`
+
+
+
+- [ ] Update these 3 lines:│                                                             │
 
   ```bash
 
-  nano .env## 🚀 DEPLOYMENT STEPS
+  GOOGLE_REDIRECT_URI=http://57.159.29.168:8000/api/v1/auth/youtube/callback└─────────────────────────────────────────────────────────────┘- [x] **API & Tasks Created**
+
+  SPOTIFY_REDIRECT_URI=http://57.159.29.168:8000/api/v1/agents/music/callback
+
+  CORS_ORIGINS=https://bondhu.tech,https://*.vercel.app,http://localhost:3000```  - [x] `bondhu-ai/api/routes/memory.py`
+
+  ```
+
+  - [x] `bondhu-ai/core/tasks/memory_tasks.py`
+
+- [ ] Save file (Ctrl+X, Y, Enter)
+
+---
+
+#### 1.2: Restart Docker Containers
+
+- [ ] Run restart commands:- [x] **Database Schema Created**
+
+  ```bash
+
+  docker-compose down## 📋 Configuration Steps (In Order)  - [x] `bondhu-ai/database/conversational_memory_schema.sql`
+
+  docker-compose up -d
+
+  ```
+
+
+
+- [ ] Verify all containers running:### ⚙️ STEP 1: Backend (Azure VM) Configuration- [x] **Integration Updated**
+
+  ```bash
+
+  docker-compose ps  - [x] `bondhu-ai/api/routes/chat.py` (memory integration)
+
+  # Expected: All show "Up (healthy)"
+
+  ```**Time: 5 minutes | SSH Required**  - [x] `bondhu-ai/main.py` (memory router added)
+
+
+
+#### 1.3: Test Backend Locally (from VM)
+
+- [ ] Health check:
+
+  ```bash```bash- [x] **Documentation Created**
+
+  curl http://localhost:8000/health
+
+  # Expected: {"status":"healthy"}# SSH into your VM  - [x] `CONVERSATIONAL_MEMORY_COMPLETE_GUIDE.md`
+
+  ```
+
+ssh Bondhu_backend@<your-vm-ip>  - [x] `MEMORY_SYSTEM_QUICK_SETUP.md`
+
+#### 1.4: Open Port 8000 in Azure NSG
+
+- [ ] Navigate to:cd ~/Project-Noor/bondhu-ai  - [x] `MEMORY_SYSTEM_VISUAL_ARCHITECTURE.md`
+
+  ```
+
+  Azure Portal → Virtual Machines → Your VM```  - [x] `MEMORY_SYSTEM_IMPLEMENTATION_COMPLETE.md`
+
+  → Networking → Network Settings
+
+  → Add inbound port rule  - [x] This checklist file
+
+  ```
+
+#### 1.1: Update `.env` File
+
+- [ ] Configure rule:
+
+  ```- [ ] Edit configuration file:---
+
+  Priority: 1000
+
+  Name: AllowAPI  ```bash
+
+  Port: 8000
+
+  Protocol: TCP  nano .env## 🚀 DEPLOYMENT STEPS
+
+  Source: Any
+
+  Action: Allow  ```
 
   ```
 
 ### Step 1: Database Migration (5 minutes)
 
+- [ ] Click Save
+
 - [ ] Find and update these lines:
-
-  ```bash- [ ] **Open Supabase Dashboard**
-
-  # Update with YOUR Azure VM public IP:  - [ ] Navigate to your project
-
-  GOOGLE_REDIRECT_URI=http://<YOUR-VM-IP>:8000/api/v1/auth/youtube/callback  - [ ] Go to SQL Editor
-
-  SPOTIFY_REDIRECT_URI=http://<YOUR-VM-IP>:8000/api/v1/agents/music/callback
-
-  - [ ] **Run Migration Script**
-
-  # Add/update CORS (use YOUR Vercel URL):  - [ ] Click "New Query"
-
-  CORS_ORIGINS=https://bondhu-landing.vercel.app,https://*.vercel.app,http://localhost:3000  - [ ] Open `bondhu-ai/database/conversational_memory_schema.sql`
-
-  ```  - [ ] Copy entire content
-
-  - [ ] Paste into SQL Editor
-
-- [ ] Save file (Ctrl+X, Y, Enter)  - [ ] Click "Run" button
-
-
-
-#### 1.2: Restart Docker Containers- [ ] **Verify Success**
-
-- [ ] Run restart commands:  - [ ] Look for success message: "Conversational Memory System schema created successfully!"
-
-  ```bash  - [ ] Check for any error messages (should be none)
-
-  docker-compose down
-
-  docker-compose up -d- [ ] **Verify Tables Created**
-
-  ```  - [ ] Go to Table Editor
-
-  - [ ] Confirm tables exist:
-
-- [ ] Verify all containers running:    - [ ] `conversation_memories` (should have 0 rows initially)
-
-  ```bash    - [ ] `memory_index` (should have 0 rows initially)
-
-  docker-compose ps    - [ ] `user_memories` (may have existing rows - that's OK)
-
-  # Expected: All show "Up (healthy)"
-
-  ```- [ ] **Verify Indexes Created**
-
-  - [ ] In SQL Editor, run:
-
-#### 1.3: Test Backend Locally (from VM)    ```sql
-
-- [ ] Health check:    SELECT indexname FROM pg_indexes 
-
-  ```bash    WHERE tablename IN ('conversation_memories', 'memory_index', 'user_memories')
-
-  curl http://localhost:8000/health    ORDER BY tablename, indexname;
-
-  # Expected: {"status":"healthy"}    ```
-
-  ```  - [ ] Should see 12+ indexes listed
-
-
-
-#### 1.4: Open Port 8000 in Azure NSG- [ ] **Verify RLS Policies**
-
-- [ ] Navigate to:  - [ ] In SQL Editor, run:
-
-  ```    ```sql
-
-  Azure Portal → Virtual Machines → Your VM    SELECT tablename, policyname FROM pg_policies 
-
-  → Networking → Network Settings    WHERE tablename IN ('conversation_memories', 'memory_index', 'user_memories');
-
-  → Add inbound port rule    ```
-
-  ```  - [ ] Should see policies for all three tables
-
-
-
-- [ ] Configure rule:---
-
-  ```
-
-  Priority: 1000### Step 2: Backend Restart (2 minutes)
-
-  Name: AllowAPI
-
-  Port: 8000- [ ] **Stop Current Backend** (if running)
-
-  Protocol: TCP  - [ ] Press `Ctrl+C` in terminal running `python main.py`
-
-  Source: Any
-
-  Action: Allow- [ ] **Restart Backend**
-
-  ```  ```bash
-
-  cd bondhu-ai
-
-- [ ] Click Save  python main.py
-
-  ```
 
 #### 1.5: Test Backend Externally (from your local machine)
 
-- [ ] Test from Windows PowerShell:- [ ] **Check Startup Logs**
+- [ ] Test from Windows PowerShell:  ```bash- [ ] **Open Supabase Dashboard**
 
-  ```powershell  - [ ] Look for: "Starting Bondhu AI application"
+  ```powershell
 
-  curl http://<YOUR-VM-IP>:8000/health  - [ ] Look for: "Configuration loaded successfully"
+  curl http://57.159.29.168:8000/health  # Update with YOUR Azure VM public IP:  - [ ] Navigate to your project
 
-  # Expected: {"status":"healthy"}  - [ ] Look for: "Database services initialized"
+  # Expected: {"status":"healthy"}
 
-  ```  - [ ] Look for: "Orchestrator initialized successfully"
-
-  - [ ] NO import errors related to memory modules
-
----
-
-- [ ] **Verify Server Running**
-
-### 🌐 STEP 2: Frontend (Vercel) Configuration  - [ ] Should see: "Uvicorn running on http://0.0.0.0:8000"
+  ```  GOOGLE_REDIRECT_URI=http://<YOUR-VM-IP>:8000/api/v1/auth/youtube/callback  - [ ] Go to SQL Editor
 
 
 
-**Time: 3 minutes | Vercel Dashboard Required**---
+---  SPOTIFY_REDIRECT_URI=http://<YOUR-VM-IP>:8000/api/v1/agents/music/callback
 
 
 
-#### 2.1: Get Vercel Deployment URL### Step 3: Health Check (2 minutes)
+### 🌐 STEP 2: Frontend (Vercel) Configuration  - [ ] **Run Migration Script**
 
-- [ ] Go to: https://vercel.com/dashboard
 
-- [ ] Find project: `bondhu-landing`- [ ] **Test Main API Health**
 
-- [ ] Copy deployment URL  ```bash
+**Time: 3 minutes | Vercel Dashboard Required**  # Add/update CORS (use YOUR Vercel URL):  - [ ] Click "New Query"
 
-- [ ] Write it here: `_______________________________`  curl http://localhost:8000/health
 
-  ```
 
-#### 2.2: Update Environment Variables  - [ ] Status: 200 OK
+#### 2.1: Update Environment Variables  CORS_ORIGINS=https://bondhu-landing.vercel.app,https://*.vercel.app,http://localhost:3000  - [ ] Open `bondhu-ai/database/conversational_memory_schema.sql`
 
-- [ ] Navigate to:  - [ ] Response includes: `"status": "healthy"`
+- [ ] Navigate to:
+
+  ```  ```  - [ ] Copy entire content
+
+  Vercel Dashboard → Your Project
+
+  → Settings → Environment Variables  - [ ] Paste into SQL Editor
 
   ```
 
-  Vercel Dashboard → Your Project- [ ] **Test Memory Service Health**
+- [ ] Save file (Ctrl+X, Y, Enter)  - [ ] Click "Run" button
 
-  → Settings → Environment Variables  ```bash
-
-  ```  curl http://localhost:8000/api/v1/memory/health
+- [ ] Add/Update this variable:
 
   ```
-
-- [ ] Add/Update variable:  - [ ] Status: 200 OK
-
-  ```  - [ ] Response includes: `"service": "memory"`, `"status": "healthy"`
 
   Key: NEXT_PUBLIC_API_URL
 
-  Value: http://<YOUR-AZURE-VM-IP>:8000- [ ] **Test Chat Service** (should still work)
+  Value: http://57.159.29.168:8000#### 1.2: Restart Docker Containers- [ ] **Verify Success**
 
-    ```bash
+  ```
 
-  Example: http://20.124.45.89:8000  curl http://localhost:8000/api/v1/chat/health
-
-  ```  ```
-
-  - [ ] Status: 200 OK
+- [ ] Run restart commands:  - [ ] Look for success message: "Conversational Memory System schema created successfully!"
 
 - [ ] Click Save
 
----
+  ```bash  - [ ] Check for any error messages (should be none)
 
-#### 2.3: Redeploy (CRITICAL!)
+#### 2.2: Redeploy (CRITICAL!)
 
-- [ ] Go to: Deployments tab### Step 4: Functional Testing (6 minutes)
+- [ ] Go to: Deployments tab  docker-compose down
 
 - [ ] Click "..." on latest deployment
 
-- [ ] Click "Redeploy"#### Test 4A: Memory Extraction (2 min)
+- [ ] Click "Redeploy"  docker-compose up -d- [ ] **Verify Tables Created**
 
 - [ ] Wait for deployment to complete
 
-- [ ] **Note:** Environment variables only apply to NEW builds!- [ ] **Send Test Message**
-
-  ```bash
-
-#### 2.4: Test Frontend  curl -X POST http://localhost:8000/api/v1/chat/send \
-
-- [ ] Open your Vercel URL in browser    -H "Content-Type: application/json" \
-
-- [ ] Press F12 to open console    -d '{
-
-- [ ] Check for errors (should be none)      "user_id": "YOUR_USER_ID",
-
-      "message": "My favorite anime is Re:Zero and my favorite character is Natsuki Subaru"
-
----    }'
-
-  ```
-
-### 🔐 STEP 3: Supabase OAuth Configuration  - [ ] Response status: 200 OK
-
-  - [ ] Response includes: `"response": "..."`
-
-**Time: 2 minutes | Supabase Dashboard Required**  - [ ] Response includes: `"has_personality_context": true/false`
+- [ ] **Note:** Environment variables only apply to NEW builds!  ```  - [ ] Go to Table Editor
 
 
 
-#### 3.1: Update Site URL- [ ] **Verify Memory Extraction in Database**
+#### 2.3: Test Frontend  - [ ] Confirm tables exist:
 
-- [ ] Go to: https://app.supabase.com/project/eilvtjkqmvmhkfzocrzs  ```sql
+- [ ] Open https://bondhu.tech in browser
 
-- [ ] Navigate to: Authentication → URL Configuration  SELECT * FROM user_memories WHERE user_id = 'YOUR_USER_ID' ORDER BY created_at DESC;
+- [ ] Press F12 to open console- [ ] Verify all containers running:    - [ ] `conversation_memories` (should have 0 rows initially)
 
-- [ ] Set Site URL to:  ```
+- [ ] Check for errors (should be none)
 
-  ```  - [ ] Should see entries for:
+  ```bash    - [ ] `memory_index` (should have 0 rows initially)
 
-  https://bondhu-landing.vercel.app    - [ ] `key = 'favorite_anime'`, `value = 'Re:Zero'`
+---
 
-  (or your custom domain)    - [ ] `key = 'favorite_character'`, `value = 'Natsuki Subaru'`
+  docker-compose ps    - [ ] `user_memories` (may have existing rows - that's OK)
+
+### 🔐 STEP 3: Supabase OAuth Configuration
+
+  # Expected: All show "Up (healthy)"
+
+**Time: 2 minutes | Supabase Dashboard Required**
+
+  ```- [ ] **Verify Indexes Created**
+
+#### 3.1: Update Site URL
+
+- [ ] Go to: https://app.supabase.com/project/eilvtjkqmvmhkfzocrzs  - [ ] In SQL Editor, run:
+
+- [ ] Navigate to: Authentication → URL Configuration
+
+- [ ] Set Site URL to:#### 1.3: Test Backend Locally (from VM)    ```sql
 
   ```
 
-- [ ] Click Save- [ ] **Verify via API**
-
-  ```bash
-
-#### 3.2: Add Redirect URLs  curl http://localhost:8000/api/v1/memory/stats/YOUR_USER_ID
-
-- [ ] In same page (URL Configuration)  ```
-
-- [ ] Add ALL these redirect URLs:  - [ ] `total_user_facts` should be >= 2
+  https://bondhu.tech- [ ] Health check:    SELECT indexname FROM pg_indexes 
 
   ```
 
-  https://bondhu-landing.vercel.app/auth/callback#### Test 4B: Conversation Summarization (2 min)
+- [ ] Click Save  ```bash    WHERE tablename IN ('conversation_memories', 'memory_index', 'user_memories')
 
-  https://bondhu-landing.vercel.app/**
 
-  https://*.vercel.app/auth/callback- [ ] **Have a Short Conversation**
 
-  https://*.vercel.app/**  - [ ] Send 3-5 messages back and forth
+#### 3.2: Add Redirect URLs  curl http://localhost:8000/health    ORDER BY tablename, indexname;
 
-  http://localhost:3000/auth/callback  - [ ] Note the session_id from responses
+- [ ] In same page (URL Configuration)
+
+- [ ] Add ALL these redirect URLs:  # Expected: {"status":"healthy"}    ```
+
+  ```
+
+  https://bondhu.tech/auth/callback  ```  - [ ] Should see 12+ indexes listed
+
+  https://bondhu.tech/**
+
+  https://*.vercel.app/auth/callback
+
+  https://*.vercel.app/**
+
+  http://localhost:3000/auth/callback#### 1.4: Open Port 8000 in Azure NSG- [ ] **Verify RLS Policies**
 
   http://localhost:3000/**
 
-  ```- [ ] **Trigger Manual Summarization**
+  ```- [ ] Navigate to:  - [ ] In SQL Editor, run:
 
-- [ ] Click Save  ```bash
+- [ ] Click Save
 
-  curl -X POST http://localhost:8000/api/v1/memory/summarize \
+  ```    ```sql
 
-#### 3.3: Test Google Sign-In    -H "Content-Type: application/json" \
+#### 3.3: Test Google Sign-In
 
-- [ ] Go to: `https://bondhu-landing.vercel.app/sign-in`    -d '{
+- [ ] Go to: `https://bondhu.tech/sign-in`  Azure Portal → Virtual Machines → Your VM    SELECT tablename, policyname FROM pg_policies 
 
-- [ ] Click "Continue with Google"      "user_id": "YOUR_USER_ID",
+- [ ] Click "Continue with Google"
 
-- [ ] Complete OAuth flow      "session_id": "YOUR_SESSION_ID"
+- [ ] Complete OAuth flow  → Networking → Network Settings    WHERE tablename IN ('conversation_memories', 'memory_index', 'user_memories');
 
-- [ ] Should redirect to dashboard    }'
+- [ ] Should redirect to dashboard
 
-- [ ] Should be logged in  ```
-
-  - [ ] Response: `"success": true`
-
----  - [ ] Response: `"message": "Conversation ... summarized successfully"`
+- [ ] Should be logged in  → Add inbound port rule    ```
 
 
 
-### 🎬 STEP 4: Google Cloud Console (YouTube Integration)- [ ] **Verify Conversation Memory Created**
+---  ```  - [ ] Should see policies for all three tables
 
-  ```bash
 
-**Time: 2 minutes | Google Cloud Console Required**  curl http://localhost:8000/api/v1/memory/conversations/YOUR_USER_ID
+
+### 🎬 STEP 4: Google Cloud Console (YouTube Integration)
+
+
+
+**Time: 2 minutes | Google Cloud Console Required**- [ ] Configure rule:---
+
+
+
+#### 4.1: Update OAuth Redirect URIs  ```
+
+- [ ] Go to: https://console.cloud.google.com
+
+- [ ] Navigate to: APIs & Services → Credentials  Priority: 1000### Step 2: Backend Restart (2 minutes)
+
+- [ ] Find OAuth 2.0 Client ID
+
+- [ ] Click edit (pencil icon)  Name: AllowAPI
+
+
+
+#### 4.2: Add Authorized Redirect URIs  Port: 8000- [ ] **Stop Current Backend** (if running)
+
+- [ ] Add these URIs:
+
+  ```  Protocol: TCP  - [ ] Press `Ctrl+C` in terminal running `python main.py`
+
+  https://eilvtjkqmvmhkfzocrzs.supabase.co/auth/v1/callback
+
+  http://57.159.29.168:8000/api/v1/auth/youtube/callback  Source: Any
+
+  https://bondhu.tech/auth/callback
+
+  ```  Action: Allow- [ ] **Restart Backend**
+
+- [ ] Click Save
+
+  ```  ```bash
+
+#### 4.3: Test YouTube Connection
+
+- [ ] Sign in to: `https://bondhu.tech`  cd bondhu-ai
+
+- [ ] Go to: Settings
+
+- [ ] Click: "Connect YouTube"- [ ] Click Save  python main.py
+
+- [ ] Complete OAuth flow
+
+- [ ] Should show "Connected"  ```
+
+
+
+---#### 1.5: Test Backend Externally (from your local machine)
+
+
+
+## ✅ Final Verification Tests- [ ] Test from Windows PowerShell:- [ ] **Check Startup Logs**
+
+
+
+### Test 1: Backend Health  ```powershell  - [ ] Look for: "Starting Bondhu AI application"
+
+```powershell
+
+# From PowerShell  curl http://<YOUR-VM-IP>:8000/health  - [ ] Look for: "Configuration loaded successfully"
+
+curl http://57.159.29.168:8000/health
+
+# Expected: {"status":"healthy"}  # Expected: {"status":"healthy"}  - [ ] Look for: "Database services initialized"
+
+```
+
+- [ ] ✅ Backend is accessible  ```  - [ ] Look for: "Orchestrator initialized successfully"
+
+
+
+### Test 2: Frontend Loads  - [ ] NO import errors related to memory modules
+
+```
+
+→ Open: https://bondhu.tech---
+
+→ F12 console should show no errors
+
+```- [ ] **Verify Server Running**
+
+- [ ] ✅ Frontend loads successfully
+
+### 🌐 STEP 2: Frontend (Vercel) Configuration  - [ ] Should see: "Uvicorn running on http://0.0.0.0:8000"
+
+### Test 3: Google Authentication
+
+```
+
+→ Click "Sign in with Google"
+
+→ Complete authentication**Time: 3 minutes | Vercel Dashboard Required**---
+
+→ Should redirect to /dashboard
+
+```
+
+- [ ] ✅ Authentication works
+
+#### 2.1: Get Vercel Deployment URL### Step 3: Health Check (2 minutes)
+
+### Test 4: Chat Integration (requires backend)
+
+```- [ ] Go to: https://vercel.com/dashboard
+
+→ Go to dashboard
+
+→ Open chat- [ ] Find project: `bondhu-landing`- [ ] **Test Main API Health**
+
+→ Send message
+
+→ Should receive AI response- [ ] Copy deployment URL  ```bash
+
+```
+
+- [ ] ✅ Chat works- [ ] Write it here: `_______________________________`  curl http://localhost:8000/health
+
+
+
+### Test 5: YouTube Integration (requires backend)  ```
+
+```
+
+→ Go to Settings#### 2.2: Update Environment Variables  - [ ] Status: 200 OK
+
+→ Click "Connect YouTube"
+
+→ Complete OAuth- [ ] Navigate to:  - [ ] Response includes: `"status": "healthy"`
+
+→ Should show connected
+
+```  ```
+
+- [ ] ✅ YouTube integration works
+
+  Vercel Dashboard → Your Project- [ ] **Test Memory Service Health**
+
+---
+
+  → Settings → Environment Variables  ```bash
+
+## 🚨 Troubleshooting
+
+  ```  curl http://localhost:8000/api/v1/memory/health
+
+### ❌ Issue: Frontend can't reach backend
 
   ```
 
-#### 4.1: Update OAuth Redirect URIs  - [ ] `total` should be >= 1
+**Symptoms:** Network errors, "Failed to fetch", Chat doesn't work
 
-- [ ] Go to: https://console.cloud.google.com  - [ ] Should see conversation with:
+- [ ] Add/Update variable:  - [ ] Status: 200 OK
+
+**Checklist:**
+
+```bash  ```  - [ ] Response includes: `"service": "memory"`, `"status": "healthy"`
+
+# 1. Backend running?
+
+ssh Bondhu_backend@57.159.29.168  Key: NEXT_PUBLIC_API_URL
+
+docker-compose ps
+
+  Value: http://<YOUR-AZURE-VM-IP>:8000- [ ] **Test Chat Service** (should still work)
+
+# 2. Port 8000 accessible?
+
+curl http://57.159.29.168:8000/health    ```bash
+
+
+
+# 3. NSG rule exists?  Example: http://20.124.45.89:8000  curl http://localhost:8000/api/v1/chat/health
+
+→ Azure Portal → VM → Networking → Verify port 8000
+
+  ```  ```
+
+# 4. CORS configured?
+
+cd ~/Project-Noor/bondhu-ai  - [ ] Status: 200 OK
+
+grep CORS_ORIGINS .env
+
+# Should include: https://bondhu.tech- [ ] Click Save
+
+```
+
+---
+
+### ❌ Issue: OAuth redirects to wrong URL
+
+#### 2.3: Redeploy (CRITICAL!)
+
+**Symptoms:** After Google sign-in, goes to wrong domain or localhost
+
+- [ ] Go to: Deployments tab### Step 4: Functional Testing (6 minutes)
+
+**Fix:**
+
+```- [ ] Click "..." on latest deployment
+
+→ Supabase Dashboard
+
+→ Authentication → URL Configuration- [ ] Click "Redeploy"#### Test 4A: Memory Extraction (2 min)
+
+→ Verify Site URL is: https://bondhu.tech (NOT localhost or vercel.app)
+
+→ Clear browser cache- [ ] Wait for deployment to complete
+
+→ Try again
+
+```- [ ] **Note:** Environment variables only apply to NEW builds!- [ ] **Send Test Message**
+
+
+
+### ❌ Issue: Vercel using old API URL  ```bash
+
+
+
+**Symptoms:** Environment variable updated but not working#### 2.4: Test Frontend  curl -X POST http://localhost:8000/api/v1/chat/send \
+
+
+
+**Fix:**- [ ] Open your Vercel URL in browser    -H "Content-Type: application/json" \
+
+```
+
+→ Vercel Dashboard → Deployments- [ ] Press F12 to open console    -d '{
+
+→ Redeploy latest deployment
+
+(Env vars only apply to NEW builds!)- [ ] Check for errors (should be none)      "user_id": "YOUR_USER_ID",
+
+```
+
+      "message": "My favorite anime is Re:Zero and my favorite character is Natsuki Subaru"
+
+### ❌ Issue: CORS errors
+
+---    }'
+
+**Symptoms:** Console shows "Access to fetch blocked by CORS policy"
+
+  ```
+
+**Fix:**
+
+```bash### 🔐 STEP 3: Supabase OAuth Configuration  - [ ] Response status: 200 OK
+
+ssh Bondhu_backend@57.159.29.168
+
+cd ~/Project-Noor/bondhu-ai  - [ ] Response includes: `"response": "..."`
+
+nano .env
+
+**Time: 2 minutes | Supabase Dashboard Required**  - [ ] Response includes: `"has_personality_context": true/false`
+
+# Verify this line exists and is correct:
+
+CORS_ORIGINS=https://bondhu.tech,https://*.vercel.app,http://localhost:3000
+
+
+
+# Restart:#### 3.1: Update Site URL- [ ] **Verify Memory Extraction in Database**
+
+docker-compose restart bondhu-api
+
+```- [ ] Go to: https://app.supabase.com/project/eilvtjkqmvmhkfzocrzs  ```sql
+
+
+
+---- [ ] Navigate to: Authentication → URL Configuration  SELECT * FROM user_memories WHERE user_id = 'YOUR_USER_ID' ORDER BY created_at DESC;
+
+
+
+## 📊 Architecture Overview- [ ] Set Site URL to:  ```
+
+
+
+```  ```  - [ ] Should see entries for:
+
+👤 User
+
+  ↓  https://bondhu-landing.vercel.app    - [ ] `key = 'favorite_anime'`, `value = 'Re:Zero'`
+
+[HTTPS] Secure connection
+
+  ↓  (or your custom domain)    - [ ] `key = 'favorite_character'`, `value = 'Natsuki Subaru'`
+
+┌──────────────────┐
+
+│ Vercel CDN       │  Frontend (Next.js)  ```
+
+│ SSL Enabled      │  https://bondhu.tech
+
+└──────────────────┘- [ ] Click Save- [ ] **Verify via API**
+
+  ↓
+
+[HTTP] API calls  ```bash
+
+  ↓
+
+┌──────────────────┐#### 3.2: Add Redirect URLs  curl http://localhost:8000/api/v1/memory/stats/YOUR_USER_ID
+
+│ Azure VM         │  Backend (Docker)
+
+│ 57.159.29.168    │  http://57.159.29.168:8000- [ ] In same page (URL Configuration)  ```
+
+│ Port 8000        │
+
+│                  │- [ ] Add ALL these redirect URLs:  - [ ] `total_user_facts` should be >= 2
+
+│ • Redis          │
+
+│ • FastAPI        │  ```
+
+│ • Celery Worker  │
+
+└──────────────────┘  https://bondhu-landing.vercel.app/auth/callback#### Test 4B: Conversation Summarization (2 min)
+
+  ↓
+
+[PostgreSQL]  https://bondhu-landing.vercel.app/**
+
+  ↓
+
+┌──────────────────┐  https://*.vercel.app/auth/callback- [ ] **Have a Short Conversation**
+
+│ Supabase         │  Database
+
+│ PostgreSQL       │  Auth & Storage  https://*.vercel.app/**  - [ ] Send 3-5 messages back and forth
+
+└──────────────────┘
+
+```  http://localhost:3000/auth/callback  - [ ] Note the session_id from responses
+
+
+
+---  http://localhost:3000/**
+
+
+
+## 📝 Configuration Summary  ```- [ ] **Trigger Manual Summarization**
+
+
+
+### What You Need to Update:- [ ] Click Save  ```bash
+
+
+
+| Component | What to Change | New Value |  curl -X POST http://localhost:8000/api/v1/memory/summarize \
+
+|-----------|---------------|-----------|
+
+| **Vercel Env** | `NEXT_PUBLIC_API_URL` | `http://57.159.29.168:8000` |#### 3.3: Test Google Sign-In    -H "Content-Type: application/json" \
+
+| **Backend .env** | `GOOGLE_REDIRECT_URI` | `http://57.159.29.168:8000/api/v1/auth/youtube/callback` |
+
+| **Backend .env** | `SPOTIFY_REDIRECT_URI` | `http://57.159.29.168:8000/api/v1/agents/music/callback` |- [ ] Go to: `https://bondhu-landing.vercel.app/sign-in`    -d '{
+
+| **Backend .env** | `CORS_ORIGINS` | `https://bondhu.tech,https://*.vercel.app` |
+
+| **Azure NSG** | Port 8000 | Open (TCP, Inbound) |- [ ] Click "Continue with Google"      "user_id": "YOUR_USER_ID",
+
+| **Supabase** | Site URL | `https://bondhu.tech` |
+
+| **Supabase** | Redirect URLs | Add `https://bondhu.tech/*` |- [ ] Complete OAuth flow      "session_id": "YOUR_SESSION_ID"
+
+| **Google OAuth** | Redirect URIs | Add backend + frontend URLs |
+
+- [ ] Should redirect to dashboard    }'
+
+### Your Final URLs:
+
+- [ ] Should be logged in  ```
+
+```
+
+Frontend:     https://bondhu.tech  - [ ] Response: `"success": true`
+
+Backend API:  http://57.159.29.168:8000
+
+API Docs:     http://57.159.29.168:8000/docs---  - [ ] Response: `"message": "Conversation ... summarized successfully"`
+
+Database:     https://eilvtjkqmvmhkfzocrzs.supabase.co
+
+```
+
+
+
+---### 🎬 STEP 4: Google Cloud Console (YouTube Integration)- [ ] **Verify Conversation Memory Created**
+
+
+
+## 🎉 All Done!  ```bash
+
+
+
+Once all checkboxes are complete, your production setup is ready!**Time: 2 minutes | Google Cloud Console Required**  curl http://localhost:8000/api/v1/memory/conversations/YOUR_USER_ID
+
+
+
+**Test the full flow:**  ```
+
+1. ✅ Visit https://bondhu.tech
+
+2. ✅ Sign in with Google#### 4.1: Update OAuth Redirect URIs  - [ ] `total` should be >= 1
+
+3. ✅ Complete personality assessment
+
+4. ✅ Test chat (requires backend)- [ ] Go to: https://console.cloud.google.com  - [ ] Should see conversation with:
+
+5. ✅ Connect YouTube (requires backend)
 
 - [ ] Navigate to: APIs & Services → Credentials    - [ ] `conversation_summary` (text)
 
-- [ ] Find OAuth 2.0 Client ID    - [ ] `topics` (array)
+**Monitor health:**
 
-- [ ] Click edit (pencil icon)    - [ ] `key_points` (array)
+```bash- [ ] Find OAuth 2.0 Client ID    - [ ] `topics` (array)
 
+# Check backend
 
+ssh Bondhu_backend@57.159.29.168- [ ] Click edit (pencil icon)    - [ ] `key_points` (array)
+
+cd ~/Project-Noor/bondhu-ai
+
+./monitor-containers.sh
+
+```
 
 #### 4.2: Add Authorized Redirect URIs- [ ] **Verify in Database**
+
+**For detailed explanations, see:** `PRODUCTION_DOMAIN_CONFIG.md`
 
 - [ ] Add these URIs:  ```sql
 

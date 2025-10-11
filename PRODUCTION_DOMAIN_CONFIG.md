@@ -43,8 +43,8 @@
 
 Example:
 ```
-Frontend: https://bondhu-landing.vercel.app
-Backend:  http://20.124.45.89:8000  (replace with your actual IP)
+Frontend: https://bondhu.tech
+Backend:  http://57.159.29.168:8000
 ```
 
 ---
@@ -61,10 +61,7 @@ Add/Update these:
 
 ```bash
 # Backend API URL - CRITICAL
-NEXT_PUBLIC_API_URL=http://<YOUR-AZURE-VM-IP>:8000
-
-# Example:
-# NEXT_PUBLIC_API_URL=http://20.124.45.89:8000
+NEXT_PUBLIC_API_URL=http://57.159.29.168:8000
 
 # Supabase (already correct, but verify)
 NEXT_PUBLIC_SUPABASE_URL=https://eilvtjkqmvmhkfzocrzs.supabase.co
@@ -103,14 +100,13 @@ NEXT_PUBLIC_API_URL=http://<YOUR-AZURE-VM-IP>:8000
 
 **Site URL:**
 ```
-https://bondhu-landing.vercel.app
+https://bondhu.tech
 ```
-(or your custom domain)
 
 **Redirect URLs (add all):**
 ```
-https://bondhu-landing.vercel.app/auth/callback
-https://bondhu-landing.vercel.app/**
+https://bondhu.tech/auth/callback
+https://bondhu.tech/**
 https://*.vercel.app/auth/callback
 https://*.vercel.app/**
 http://localhost:3000/auth/callback
@@ -128,11 +124,11 @@ Find your OAuth 2.0 Client ID and add **Authorized redirect URIs:**
 https://eilvtjkqmvmhkfzocrzs.supabase.co/auth/v1/callback
 
 # Backend callback (for YouTube integration)
-http://<YOUR-AZURE-VM-IP>:8000/api/v1/auth/youtube/callback
+http://57.159.29.168:8000/api/v1/auth/youtube/callback
 
-# Vercel frontend
-https://bondhu-landing.vercel.app
-https://bondhu-landing.vercel.app/auth/callback
+# Frontend domain
+https://bondhu.tech
+https://bondhu.tech/auth/callback
 ```
 
 #### 5. vercel.json API Rewrites (Optional - For Custom Domain)
@@ -173,26 +169,17 @@ nano .env
 
 ```bash
 # Google OAuth Redirect URI (for YouTube integration)
-# Before:
-GOOGLE_REDIRECT_URI=https://eolithic-meghan-overdiversely.ngrok-free.dev/api/v1/auth/youtube/callback
-
-# After (use your Azure VM public IP):
-GOOGLE_REDIRECT_URI=http://<YOUR-AZURE-VM-IP>:8000/api/v1/auth/youtube/callback
+GOOGLE_REDIRECT_URI=http://57.159.29.168:8000/api/v1/auth/youtube/callback
 
 # Spotify Redirect URI (if using Spotify)
-# Before:
-SPOTIFY_REDIRECT_URI=https://maggie-fermentative-sherrill.ngrok-free.dev/api/v1/agents/music/callback
-
-# After:
-SPOTIFY_REDIRECT_URI=http://<YOUR-AZURE-VM-IP>:8000/api/v1/agents/music/callback
+SPOTIFY_REDIRECT_URI=http://57.159.29.168:8000/api/v1/agents/music/callback
 
 # API Configuration (can stay localhost since it's running inside Docker)
 API_HOST=localhost
 API_PORT=8000
 
 # IMPORTANT: Add CORS allowed origins for your frontend
-# Add this line if it doesn't exist:
-CORS_ORIGINS=https://bondhu-landing.vercel.app,https://*.vercel.app,http://localhost:3000
+CORS_ORIGINS=https://bondhu.tech,https://*.vercel.app,http://localhost:3000
 ```
 
 **Save and restart containers:**
@@ -240,9 +227,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://bondhu-landing.vercel.app",  # Your Vercel domain
+        "https://bondhu.tech",  # Your custom domain
         "https://*.vercel.app",  # All Vercel preview deployments
-        # Add your custom domain here if you have one
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -271,7 +257,7 @@ If you need to update this, edit the file and restart containers.
 ### Step 2: Update Backend (Azure VM)
 ```bash
 # SSH into VM
-ssh Bondhu_backend@<your-vm-ip>
+ssh Bondhu_backend@57.159.29.168
 
 # Navigate to project
 cd ~/Project-Noor/bondhu-ai
@@ -283,9 +269,9 @@ git pull origin main
 nano .env
 
 # Update these lines:
-# GOOGLE_REDIRECT_URI=http://<YOUR-VM-IP>:8000/api/v1/auth/youtube/callback
-# SPOTIFY_REDIRECT_URI=http://<YOUR-VM-IP>:8000/api/v1/agents/music/callback
-# CORS_ORIGINS=https://bondhu-landing.vercel.app,https://*.vercel.app
+GOOGLE_REDIRECT_URI=http://57.159.29.168:8000/api/v1/auth/youtube/callback
+SPOTIFY_REDIRECT_URI=http://57.159.29.168:8000/api/v1/agents/music/callback
+CORS_ORIGINS=https://bondhu.tech,https://*.vercel.app,http://localhost:3000
 
 # Save (Ctrl+X, Y, Enter)
 
@@ -311,7 +297,7 @@ curl http://localhost:8000/health
 ```bash
 → vercel.com/dashboard
 → Your project → Settings → Environment Variables
-→ Add/Update: NEXT_PUBLIC_API_URL=http://<YOUR-VM-IP>:8000
+→ Add/Update: NEXT_PUBLIC_API_URL=http://57.159.29.168:8000
 → Save
 → Deployments → Redeploy latest
 ```
@@ -320,8 +306,8 @@ curl http://localhost:8000/health
 ```bash
 → app.supabase.com/project/eilvtjkqmvmhkfzocrzs
 → Authentication → URL Configuration
-→ Site URL: https://bondhu-landing.vercel.app
-→ Redirect URLs: Add all Vercel URLs
+→ Site URL: https://bondhu.tech
+→ Redirect URLs: Add https://bondhu.tech/auth/callback and wildcards
 → Save
 ```
 
@@ -332,17 +318,18 @@ curl http://localhost:8000/health
 → OAuth 2.0 Client ID
 → Authorized redirect URIs:
    - Add: https://eilvtjkqmvmhkfzocrzs.supabase.co/auth/v1/callback
-   - Add: http://<YOUR-VM-IP>:8000/api/v1/auth/youtube/callback
+   - Add: http://57.159.29.168:8000/api/v1/auth/youtube/callback
+   - Add: https://bondhu.tech/auth/callback
 → Save
 ```
 
 ### Step 7: Test Everything
 ```bash
 # Test backend API
-curl http://<YOUR-VM-IP>:8000/health
+curl http://57.159.29.168:8000/health
 
 # Test frontend
-→ Open: https://bondhu-landing.vercel.app
+→ Open: https://bondhu.tech
 → Try Google sign-in
 → Check if chat works (requires backend)
 → Check if YouTube connect works (requires backend)
@@ -357,24 +344,24 @@ After configuration, verify:
 ### Backend Tests (from your local machine)
 ```bash
 # 1. Health check
-curl http://<YOUR-VM-IP>:8000/health
+curl http://57.159.29.168:8000/health
 # Expected: {"status":"healthy"}
 
 # 2. CORS test
-curl -H "Origin: https://bondhu-landing.vercel.app" \
+curl -H "Origin: https://bondhu.tech" \
      -H "Access-Control-Request-Method: POST" \
      -H "Access-Control-Request-Headers: Content-Type" \
-     -X OPTIONS http://<YOUR-VM-IP>:8000/api/v1/chat/send
+     -X OPTIONS http://57.159.29.168:8000/api/v1/chat/send
 # Expected: Headers with Access-Control-Allow-Origin
 
 # 3. API docs
-→ Open: http://<YOUR-VM-IP>:8000/docs
+→ Open: http://57.159.29.168:8000/docs
 # Should see FastAPI Swagger UI
 ```
 
 ### Frontend Tests
 ```bash
-→ Open: https://bondhu-landing.vercel.app
+→ Open: https://bondhu.tech
 
 # 1. Google Sign-in
 → Click "Sign in with Google"
@@ -470,21 +457,22 @@ Then update your Vercel env to use: `https://api.yourdomain.com`
 ## 📝 Summary of URLs to Update
 
 ### Get These First:
-1. **Vercel Frontend URL:** `https://bondhu-landing.vercel.app` (or your custom domain)
-2. **Azure VM Public IP:** `20.XXX.XXX.XXX` (get from Azure Portal)
+1. **Frontend Domain:** `https://bondhu.tech`
+2. **Azure VM Public IP:** `57.159.29.168`
 
 ### Update These:
 
 | Location | Variable/Setting | New Value |
 |----------|-----------------|-----------|
-| **Vercel Env Vars** | `NEXT_PUBLIC_API_URL` | `http://<VM-IP>:8000` |
-| **Backend .env** | `GOOGLE_REDIRECT_URI` | `http://<VM-IP>:8000/api/v1/auth/youtube/callback` |
-| **Backend .env** | `SPOTIFY_REDIRECT_URI` | `http://<VM-IP>:8000/api/v1/agents/music/callback` |
-| **Backend .env** | `CORS_ORIGINS` | `https://bondhu-landing.vercel.app,https://*.vercel.app` |
-| **Supabase Site URL** | Site URL | `https://bondhu-landing.vercel.app` |
-| **Supabase Redirects** | Redirect URLs | `https://bondhu-landing.vercel.app/auth/callback` + wildcards |
-| **Google OAuth** | Authorized URIs | `http://<VM-IP>:8000/api/v1/auth/youtube/callback` |
+| **Vercel Env Vars** | `NEXT_PUBLIC_API_URL` | `http://57.159.29.168:8000` |
+| **Backend .env** | `GOOGLE_REDIRECT_URI` | `http://57.159.29.168:8000/api/v1/auth/youtube/callback` |
+| **Backend .env** | `SPOTIFY_REDIRECT_URI` | `http://57.159.29.168:8000/api/v1/agents/music/callback` |
+| **Backend .env** | `CORS_ORIGINS` | `https://bondhu.tech,https://*.vercel.app` |
+| **Supabase Site URL** | Site URL | `https://bondhu.tech` |
+| **Supabase Redirects** | Redirect URLs | `https://bondhu.tech/auth/callback` + wildcards |
+| **Google OAuth** | Authorized URIs | `http://57.159.29.168:8000/api/v1/auth/youtube/callback` |
 | **Google OAuth** | Authorized URIs | `https://eilvtjkqmvmhkfzocrzs.supabase.co/auth/v1/callback` |
+| **Google OAuth** | Authorized URIs | `https://bondhu.tech/auth/callback` |
 | **Azure NSG** | Inbound Port Rule | Port 8000, TCP, Allow |
 
 ---
@@ -556,30 +544,31 @@ docker-compose restart bondhu-api
 
 ```bash
 # 1. Update backend
-ssh Bondhu_backend@<VM-IP>
+ssh Bondhu_backend@57.159.29.168
 cd ~/Project-Noor/bondhu-ai
 nano .env
-# Update GOOGLE_REDIRECT_URI and CORS_ORIGINS
+# Update GOOGLE_REDIRECT_URI, SPOTIFY_REDIRECT_URI, and CORS_ORIGINS
 docker-compose down && docker-compose up -d
 
 # 2. Test backend
-curl http://<VM-IP>:8000/health
+curl http://57.159.29.168:8000/health
 
 # 3. Update Vercel
 → vercel.com → Your Project → Settings → Environment Variables
-→ NEXT_PUBLIC_API_URL = http://<VM-IP>:8000
+→ NEXT_PUBLIC_API_URL = http://57.159.29.168:8000
 → Redeploy
 
 # 4. Update Supabase
 → app.supabase.com → Authentication → URL Configuration
-→ Add your Vercel URLs
+→ Site URL: https://bondhu.tech
+→ Add redirect URLs
 
 # 5. Update Google OAuth
 → console.cloud.google.com → Credentials
 → Add redirect URIs
 
 # 6. Test frontend
-→ Open: https://bondhu-landing.vercel.app
+→ Open: https://bondhu.tech
 → Test sign-in and features
 ```
 
