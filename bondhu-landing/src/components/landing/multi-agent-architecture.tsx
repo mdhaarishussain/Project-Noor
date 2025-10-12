@@ -4,10 +4,12 @@ import { motion, useReducedMotion, useInView } from 'framer-motion';
 import { useState, useCallback, useRef } from 'react';
 import * as lucide from 'lucide-react';
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
+import { OceanModelModal } from './ocean-model-modal';
 
 export default function MultiAgentArchitecture() {
   const shouldReduceMotion = useReducedMotion();
   const [hoveredAgent, setHoveredAgent] = useState<number | null>(null);
+  const [isOceanModalOpen, setIsOceanModalOpen] = useState(false);
   const sectionRef = useRef(null);
   const isInView = useInView(sectionRef, { once: true, amount: 0.2 });
 
@@ -302,7 +304,44 @@ export default function MultiAgentArchitecture() {
                   </div>
 
                   <div className="text-center mb-4">
-                    <h3 className="text-lg font-semibold mb-1">{agent.name}</h3>
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <h3 className="text-lg font-semibold">{agent.name}</h3>
+                      {agent.id === 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsOceanModalOpen(true);
+                          }}
+                          className="group/info relative"
+                          aria-label="Learn about OCEAN Psychology"
+                        >
+                          <motion.div
+                            className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/30 flex items-center justify-center border-2 border-emerald-500/50 hover:from-emerald-500/50 hover:to-emerald-600/50 hover:border-emerald-500/70 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25 cursor-pointer"
+                            whileHover={{ scale: 1.15 }}
+                            whileTap={{ scale: 0.9 }}
+                            animate={{
+                              boxShadow: [
+                                '0 0 0 0 rgba(16, 185, 129, 0)',
+                                '0 0 0 4px rgba(16, 185, 129, 0.1)',
+                                '0 0 0 0 rgba(16, 185, 129, 0)',
+                              ],
+                            }}
+                            transition={{
+                              boxShadow: {
+                                duration: 2,
+                                repeat: Infinity,
+                                ease: 'easeInOut',
+                              },
+                            }}
+                          >
+                            {renderIcon('Info', 'w-4 h-4 text-emerald-600 dark:text-emerald-400 font-bold')}
+                          </motion.div>
+                          <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-card border border-border text-xs rounded whitespace-nowrap opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none shadow-lg z-50">
+                            OCEAN Model
+                          </span>
+                        </button>
+                      )}
+                    </div>
                     <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                       {agent.sourceIcon === 'spotify' ? (
                         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -604,6 +643,12 @@ export default function MultiAgentArchitecture() {
           </div>
         </div>
       </div>
+
+      {/* OCEAN Model Modal */}
+      <OceanModelModal 
+        isOpen={isOceanModalOpen} 
+        onClose={() => setIsOceanModalOpen(false)} 
+      />
     </section>
   );
 }

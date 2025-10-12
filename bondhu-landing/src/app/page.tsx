@@ -5,6 +5,7 @@ import { SolutionSection } from "@/components/sections/solution-section"
 import MultiAgentArchitecture from "@/components/landing/multi-agent-architecture"
 import { InteractiveDemo } from "@/components/sections/interactive-demo"
 import { FeaturesSection } from "@/components/sections/features-section"
+import TechnicalDifferentiationPanel from "@/components/landing/technical-differentiation-panel"
 import { PricingSection } from "@/components/sections/pricing-section"
 import { CurvedMarqueeSection } from "@/components/sections/curved-marquee-section"
 import { Footer } from "@/components/sections/footer"
@@ -21,6 +22,7 @@ export default function Home() {
         <MultiAgentArchitecture />
         <InteractiveDemo />
         <FeaturesSection />
+        <TechnicalDifferentiationPanel />
         <PricingSection />
         <CurvedMarqueeSection />
       </main>
