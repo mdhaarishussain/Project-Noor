@@ -2,6 +2,7 @@ import { Navbar1 } from "@/components/ui/navbar-1"
 import { HeroSection } from "@/components/sections/hero-section"
 import { ProblemSection } from "@/components/sections/problem-section"
 import { SolutionSection } from "@/components/sections/solution-section"
+import MultiAgentArchitecture from "@/components/landing/multi-agent-architecture"
 import { InteractiveDemo } from "@/components/sections/interactive-demo"
 import { FeaturesSection } from "@/components/sections/features-section"
 import { PricingSection } from "@/components/sections/pricing-section"
@@ -17,6 +18,7 @@ export default function Home() {
         <HeroSection />
         <ProblemSection />
         <SolutionSection />
+        <MultiAgentArchitecture />
         <InteractiveDemo />
         <FeaturesSection />
         <PricingSection />
