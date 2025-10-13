@@ -6,6 +6,9 @@ import { Youtube, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
+// Use environment variable for API URL, fallback to localhost for local dev
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface YouTubeConnectButtonProps {
   userId: string;
   onConnectionChange?: (connected: boolean) => void;
@@ -68,7 +71,7 @@ export function YouTubeConnectButton({
       setError(null);
       
       const response = await fetch(
-        `http://localhost:8000/api/v1/auth/youtube/status/${userId}`,
+        `${API_BASE_URL}/api/v1/auth/youtube/status/${userId}`,
         { 
           signal: AbortSignal.timeout(3000) // 3 second timeout
         }
@@ -101,7 +104,7 @@ export function YouTubeConnectButton({
       setError(null);
       
       const response = await fetch(
-        `http://localhost:8000/api/v1/auth/youtube/connect?user_id=${userId}`,
+        `${API_BASE_URL}/api/v1/auth/youtube/connect?user_id=${userId}`,
         { 
           signal: AbortSignal.timeout(3000) // 3 second timeout
         }
@@ -141,7 +144,7 @@ export function YouTubeConnectButton({
       setError(null);
       
       const response = await fetch(
-        `http://localhost:8000/api/v1/auth/youtube/disconnect/${userId}`,
+        `${API_BASE_URL}/api/v1/auth/youtube/disconnect/${userId}`,
         { method: "POST" }
       );
       
@@ -171,7 +174,7 @@ export function YouTubeConnectButton({
   const handleRefreshToken = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/v1/auth/youtube/refresh/${userId}`,
+        `${API_BASE_URL}/api/v1/auth/youtube/refresh/${userId}`,
         { method: "POST" }
       );
       

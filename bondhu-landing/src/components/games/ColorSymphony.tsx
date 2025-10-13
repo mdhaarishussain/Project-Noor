@@ -454,6 +454,8 @@ export function ColorSymphony({ onGameComplete }: ColorSymphonyProps) {
                     {currentArtwork.gradient.map((stop, index) => (
                       <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                         <input
+                          id={`color-stop-${index}`}
+                          name={`colorStop${index}`}
                           type="color"
                           value={stop.color}
                           onChange={(e) => updateColorStop(index, e.target.value)}

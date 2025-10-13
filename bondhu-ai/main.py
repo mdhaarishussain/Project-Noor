@@ -5,6 +5,7 @@ Provides API endpoints for personality analysis and agent management.
 
 import logging
 import sys
+import os
 from pathlib import Path
 
 # Ensure project root is on sys.path so absolute imports (e.g. `api.models`) work
@@ -111,13 +112,38 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
+# Configure CORS - Allow all production domains
+# Get CORS origins from environment variable or use defaults
+cors_origins_env = os.getenv("CORS_ORIGINS", "")
+if cors_origins_env:
+    # Parse comma-separated origins from environment variable
+    cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+else:
+    # Default CORS origins for local development
+    cors_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
+# Always add these production domains if not already present
+production_domains = [
+    "https://bondhu.tech",
+    "https://www.bondhu.tech",
+    "https://api.bondhu.tech",
+]
+for domain in production_domains:
+    if domain not in cors_origins:
+        cors_origins.append(domain)
+
+# Use allow_origin_regex for Vercel preview deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Next.js frontend
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel preview deployments
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Added OPTIONS for preflight
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include routers

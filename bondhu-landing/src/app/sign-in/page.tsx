@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Eye, EyeOff, Loader2, MessageCircle, Shield, Heart, Zap } from "lucide-react"
@@ -22,17 +22,8 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null)
   
   const router = useRouter()
-  const [redirectTo, setRedirectTo] = useState('/dashboard')
-
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search)
-      const r = params.get('redirectTo')
-      if (r) setRedirectTo(r)
-    } catch (e) {
-      // ignore in non-browser environments
-    }
-  }, [])
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
   const supabase = createClient()
 
   const {
@@ -402,6 +393,14 @@ export default function SignInPage() {
               <Link href="/sign-up" className="text-primary hover:underline font-medium">
                 Create an account
               </Link>
+            </p>
+
+            {/* Terms reminder */}
+            <p className="text-center text-[10px] text-muted-foreground mt-2">
+              By signing in you agree to our {" "}
+              <Link href="/terms-of-service" className="text-primary hover:underline font-medium">Terms of Service</Link>
+              {" "}and {" "}
+              <Link href="/privacy-policy" className="text-primary hover:underline font-medium">Privacy Policy</Link>.
             </p>
 
             {/* Mobile Features Preview */}

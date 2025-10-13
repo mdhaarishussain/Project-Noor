@@ -688,7 +688,7 @@ export default function TermsPage() {
                             <h3 className="font-bold text-gray-900 dark:text-white mb-4">Legal</h3>
                             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                                 <li>
-                                    <Link href="/terms-and-conditions" className="hover:text-[#00d084] transition-colors">
+                                    <Link href="/terms-of-service" className="hover:text-[#00d084] transition-colors">
                                         Terms of Service
                                     </Link>
                                 </li>

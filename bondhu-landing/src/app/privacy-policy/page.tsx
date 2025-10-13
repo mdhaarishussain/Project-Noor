@@ -652,7 +652,42 @@ export default function PrivacyPage() {
                             </div>
                         </section>
 
-                        {/* Remaining sections 8-16 follow same pattern... */}
+                        {/* Section 8 - Children's Privacy & Parental Consent */}
+                        <section id="children-privacy" className="mb-16 scroll-mt-32">
+                            <div className="flex items-start gap-4 mb-6">
+                                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-[#00d084] to-[#00a86b] rounded-xl flex items-center justify-center shadow-lg shadow-[#00d084]/20">
+                                    <span className="text-white font-bold text-lg">8</span>
+                                </div>
+                                <div>
+                                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                                        Children's Privacy & Parental Consent
+                                    </h2>
+                                </div>
+                            </div>
+                            <div className="pl-16 prose prose-lg max-w-none">
+                                <div className="bg-purple-50 dark:bg-purple-950/30 border-l-4 border-purple-500 dark:border-purple-600 p-6 rounded-r-lg mb-4">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-2">
+                                        <span className="font-semibold text-gray-900 dark:text-white">Age Restriction:</span> Bondhu does not knowingly collect personal data from children under 13 years of age without verifiable parental consent.
+                                    </p>
+                                </div>
+                                <ul className="space-y-3 text-gray-700 dark:text-gray-300">
+                                    <li className="flex items-start gap-3">
+                                        <span className="text-[#00d084] font-bold mt-1">•</span>
+                                        <span>Users aged 13–17 years may only use Bondhu with verifiable parental or legal guardian consent</span>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <span className="text-[#00d084] font-bold mt-1">•</span>
+                                        <span>Parents or guardians can review, modify, or request deletion of their child's data by contacting us</span>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <span className="text-[#00d084] font-bold mt-1">•</span>
+                                        <span>If we discover that we have inadvertently collected data from a child under 13 without parental consent, we will promptly delete such data</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </section>
+
+                        {/* Remaining sections 9-16 follow same pattern... */}
                         {/* I'll add the remaining sections from the privacy text */}
 
                         {/* Section 9 - Cookies & Tracking */}
@@ -776,40 +811,6 @@ export default function PrivacyPage() {
                             </div>
                         </section>
 
-                        <section id="children-privacy" className="mb-16 scroll-mt-32">
-                            <div className="flex items-start gap-4 mb-6">
-                                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-[#00d084] to-[#00a86b] rounded-xl flex items-center justify-center shadow-lg shadow-[#00d084]/20">
-                                    <span className="text-white font-bold text-lg">8</span>
-                                </div>
-                                <div>
-                                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-                                        Children's Privacy & Parental Consent
-                                    </h2>
-                                </div>
-                            </div>
-                            <div className="pl-16 prose prose-lg max-w-none">
-                                <div className="bg-purple-50 dark:bg-purple-950/30 border-l-4 border-purple-500 dark:border-purple-600 p-6 rounded-r-lg mb-4">
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-2">
-                                        <span className="font-semibold text-gray-900 dark:text-white">Age Restriction:</span> Bondhu does not knowingly collect personal data from children under 13 years of age without verifiable parental consent.
-                                    </p>
-                                </div>
-                                <ul className="space-y-3 text-gray-700 dark:text-gray-300">
-                                    <li className="flex items-start gap-3">
-                                        <span className="text-[#00d084] font-bold mt-1">•</span>
-                                        <span>Users aged 13–17 years may only use Bondhu with verifiable parental or legal guardian consent</span>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <span className="text-[#00d084] font-bold mt-1">•</span>
-                                        <span>Parents or guardians can review, modify, or request deletion of their child's data by contacting us</span>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <span className="text-[#00d084] font-bold mt-1">•</span>
-                                        <span>If we discover that we have inadvertently collected data from a child under 13 without parental consent, we will promptly delete such data</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </section>
-
                         {/* Section 15 - Contact */}
                         <section id="contact" className="scroll-mt-32">
                             <div className="flex items-start gap-4 mb-6">
@@ -868,7 +869,7 @@ export default function PrivacyPage() {
                             <h3 className="font-bold text-gray-900 dark:text-white mb-4">Legal</h3>
                             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                                 <li>
-                                    <Link href="/terms-and-conditions" className="hover:text-[#00d084] transition-colors">
+                                    <Link href="/terms-of-service" className="hover:text-[#00d084] transition-colors">
                                         Terms of Service
                                     </Link>
                                 </li>
