@@ -56,8 +56,8 @@ export const GlareCard = ({
     "--shade": isDark
       ? "radial-gradient( farthest-corner circle at var(--m-x) var(--m-y),rgba(255,255,255,0.1) 12%,rgba(255,255,255,0.15) 20%,rgba(255,255,255,0.25) 120% ) var(--bg-x) var(--bg-y)/300% no-repeat"
       : "radial-gradient( farthest-corner circle at var(--m-x) var(--m-y),rgba(59,130,246,0.4) 12%,rgba(59,130,246,0.5) 20%,rgba(59,130,246,0.6) 120% ) var(--bg-x) var(--bg-y)/300% no-repeat",
-    "background-blend-mode": "hue, hue, hue, overlay",
-  };
+    backgroundBlendMode: "hue, hue, hue, overlay",
+  } as any;
 
   const updateStyles = () => {
     if (refElement.current) {
