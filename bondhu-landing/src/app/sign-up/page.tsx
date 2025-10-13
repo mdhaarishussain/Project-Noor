@@ -21,8 +21,11 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
   const [isTyping, setIsTyping] = useState(false)
   const [password, setPassword] = useState("")
+  const [resendLoading, setResendLoading] = useState(false)
 
   const router = useRouter()
   const supabase = createClient()
@@ -55,34 +58,54 @@ export default function SignUpPage() {
         }
       })
 
+      // Debug: log the full signUp response to help diagnose silent failures
+      // (remove or guard this in production)
+      // eslint-disable-next-line no-console
+      console.debug('supabase.signUp response:', { authData, signUpError })
+
       if (signUpError) {
         throw signUpError
       }
 
+      if (!authData) {
+        // Unexpected: no data returned
+        setError('No response from authentication service. Please check your Supabase configuration.')
+        return
+      }
+
+      // Supabase returns a user and may return a session only if signUp also signed-in the user
       if (authData.user) {
-        // Update or create profile record (use upsert to handle trigger-created profiles)
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: authData.user.id,
-            full_name: data.full_name,
-            onboarding_completed: false,
-            personality_data: {}
-          }, {
-            onConflict: 'id'
-          })
+        // If a session exists the user is already authenticated and we can redirect
+        // Otherwise Supabase likely sent a verification email and the user must confirm first
+        if ((authData as any).session) {
+          // Update or create profile record (use upsert to handle trigger-created profiles)
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: authData.user.id,
+              full_name: data.full_name,
+              onboarding_completed: false,
+              personality_data: {}
+            }, {
+              onConflict: 'id'
+            })
 
-        if (profileError) {
-          console.error('Profile creation error:', profileError)
-          console.error('Profile error details:', JSON.stringify(profileError, null, 2))
-          // Don't throw here, user is created, just continue
+          if (profileError) {
+            console.error('Profile creation error:', profileError)
+            console.error('Profile error details:', JSON.stringify(profileError, null, 2))
+            // Don't throw here, user is created, just continue
+          } else {
+            console.log('Profile created/updated successfully for user:', authData.user.id)
+          }
+
+          // Redirect to personality questionnaire
+          router.push('/onboarding/personality')
+          router.refresh()
         } else {
-          console.log('Profile created/updated successfully for user:', authData.user.id)
+          // No session — likely email confirmation required
+          setPendingEmail(data.email)
+          setInfo(`A verification email has been sent to ${data.email}. Please check your inbox and follow the link to verify your account before signing in.`)
         }
-
-        // Redirect to personality questionnaire
-        router.push('/onboarding/personality')
-        router.refresh()
       }
     } catch (err: unknown) {
       console.error('Sign up error:', err)
@@ -244,6 +267,45 @@ export default function SignUpPage() {
                 className="bg-destructive/10 border border-destructive/20 text-destructive px-3 py-2.5 rounded-lg text-xs sm:text-sm"
               >
                 {error}
+              </motion.div>
+            )}
+            {info && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-primary/10 border border-primary/20 text-primary px-3 py-2.5 rounded-lg text-xs sm:text-sm"
+              >
+                  <div className="flex flex-col gap-2">
+                    <div>{info}</div>
+                    {pendingEmail && (
+                      <div className="flex items-center justify-end">
+                        <button
+                          className="text-sm text-primary hover:underline font-medium"
+                          onClick={async () => {
+                            try {
+                              setResendLoading(true)
+                              setError(null)
+                              const res = await fetch('/api/auth/resend-verification', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: pendingEmail })
+                              })
+                              const body = await res.json()
+                              if (!res.ok) throw new Error(body?.error || 'Failed to resend')
+                              setInfo(`Verification email resent to ${pendingEmail}. Check your inbox.`)
+                            } catch (err: any) {
+                              setError(err?.message || 'Unable to resend verification email')
+                            } finally {
+                              setResendLoading(false)
+                            }
+                          }}
+                          disabled={resendLoading}
+                        >
+                          {resendLoading ? 'Resending...' : 'Resend verification email'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
               </motion.div>
             )}
 
@@ -427,6 +489,19 @@ export default function SignUpPage() {
               </svg>
               Continue with Google
             </Button>
+
+            {/* Agreement line under social button */}
+            <p className="mt-3 text-center text-[11px] text-muted-foreground px-2">
+              By signing up you agree to our&nbsp;
+              <Link href="/terms-of-service" className="text-primary hover:underline font-medium" target="_blank">
+                Terms of Service
+              </Link>
+              &nbsp;and&nbsp;
+              <Link href="/privacy-policy" className="text-primary hover:underline font-medium" target="_blank">
+                Privacy Policy
+              </Link>
+              .
+            </p>
 
             {/* Sign In Link */}
             <p className="text-center text-xs text-muted-foreground">

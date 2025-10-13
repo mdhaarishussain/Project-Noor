@@ -157,8 +157,8 @@ export default function PrivacyPage() {
                                                     <ArrowRight
                                                         strokeWidth={3}
                                                         className={`w-6 h-6 ${activeSection === item.id
-                                                                ? "text-[#00d084]"
-                                                                : "text-gray-400 dark:text-gray-600"
+                                                            ? "text-[#00d084]"
+                                                            : "text-gray-400 dark:text-gray-600"
                                                             }`}
                                                     />
                                                 </motion.div>
@@ -170,8 +170,8 @@ export default function PrivacyPage() {
                                                     }}
                                                     transition={{ duration: 0.3, ease: "easeOut" }}
                                                     className={`font-semibold text-lg text-left transition-colors ${activeSection === item.id
-                                                            ? "text-[#00d084]"
-                                                            : "text-gray-800 dark:text-gray-300 hover:text-[#00d084]"
+                                                        ? "text-[#00d084]"
+                                                        : "text-gray-800 dark:text-gray-300 hover:text-[#00d084]"
                                                         }`}
                                                 >
                                                     {item.number}. {item.label}
