@@ -56,7 +56,7 @@ export const GlareCard = ({
     "--shade": isDark
       ? "radial-gradient( farthest-corner circle at var(--m-x) var(--m-y),rgba(255,255,255,0.1) 12%,rgba(255,255,255,0.15) 20%,rgba(255,255,255,0.25) 120% ) var(--bg-x) var(--bg-y)/300% no-repeat"
       : "radial-gradient( farthest-corner circle at var(--m-x) var(--m-y),rgba(59,130,246,0.4) 12%,rgba(59,130,246,0.5) 20%,rgba(59,130,246,0.6) 120% ) var(--bg-x) var(--bg-y)/300% no-repeat",
-    backgroundBlendMode: "hue, hue, hue, overlay",
+    "background-blend-mode": "hue, hue, hue, overlay",
   };
 
   const updateStyles = () => {
@@ -141,7 +141,7 @@ export const GlareCard = ({
             "w-full h-full grid [grid-area:1/1] opacity-[var(--opacity)] will-change-background transition-opacity [clip-path:inset(0_0_1px_0_round_var(--radius))] [background-blend-mode:hue_hue_hue_overlay] [background:var(--pattern),_var(--rainbow),_var(--diagonal),_var(--shade)] relative after:content-[''] after:grid-area-[inherit] after:bg-repeat-[inherit] after:bg-attachment-[inherit] after:bg-origin-[inherit] after:bg-clip-[inherit] after:bg-[inherit] after:mix-blend-exclusion after:[background-size:var(--foil-size),_200%_400%,_800%,_200%] after:[background-position:center,_0%_var(--bg-y),_calc(var(--bg-x)*_-1)_calc(var(--bg-y)*_-1),_var(--bg-x)_var(--bg-y)] after:[background-blend-mode:soft-light,_hue,_hard-light]",
             isDark ? "mix-blend-color-dodge" : "mix-blend-overlay"
           )}
-          style={{ ...backgroundStyle }}
+          style={backgroundStyle}
         />
       </div>
     </div>

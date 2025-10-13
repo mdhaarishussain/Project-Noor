@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import MagicBento from "@/components/ui/magic-bento"
 import { GamifiedDiscoveryCard } from "@/components/cards/gamified-discovery-card"
+import { EmotionalUnderstandingCard } from "@/components/cards/emotional-understanding-card"
 
 export function FeaturesSection() {
   const bentoCards = [
@@ -22,9 +23,7 @@ export function FeaturesSection() {
       customContent: <GamifiedDiscoveryCard />,
     },
     {
-      title: "Emotional Understanding",
-      description: "Recognizes mood patterns and provides contextual emotional support when you need it most. Uses advanced sentiment analysis to detect subtle emotional cues in your conversations and offers personalized coping strategies, breathing exercises, and grounding techniques.",
-      label: "Empathetic",
+      customContent: <EmotionalUnderstandingCard />,
     },
     {
       title: "Privacy First",

@@ -89,7 +89,7 @@ export function FAQSection() {
         },
         {
             question: "Do I need to take a personality test?",
-            answer: "A brief initial assessment (10-15 questions, 5 minutes) helps Bondhu understand you better. It's highly recommended for the best experience.",
+            answer: "A brief initial assessment (10-15 questions, 5 minutes) helps Bondhu understand you better. It's highly recommended for personality discovery as it is based on OCEAN Big Five Inventory–2 (BFI-2) XS test.",
         },
         {
             question: "What if I'm not comfortable sharing everything right away?",
@@ -129,7 +129,7 @@ export function FAQSection() {
         },
         {
             question: "What features are coming soon?",
-            answer: "Q4 2025: Mobile apps (iOS/Android), Group support features, Therapist referral network. 2026: Multi-language support (Hindi, Tamil, Telugu, Bengali), Voice conversations, Family sharing, Integration with wearables (mood tracking via Apple Watch/Fitbit), and Journaling with AI insights.",
+            answer: "Q4 2025: Mobile apps (iOS/Android), Group support features, Therapist referral network. 2026: Voice conversations, Family sharing, Integration with wearables (mood tracking via Apple Watch/Fitbit), and Journaling with AI insights.",
         },
     ];
     
