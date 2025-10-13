@@ -39,7 +39,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
   const [hasPersonalityContext, setHasPersonalityContext] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const [hasUserSentMessage, setHasUserSentMessage] = useState(false);
+  const [showQuickResponses, setShowQuickResponses] = useState(true);
   const sessionId = useRef<string>(generateSessionId()); // Use ref instead of state since it doesn't change
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +51,25 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Check if this is a new daily session
+  useEffect(() => {
+    const checkDailySession = () => {
+      const today = new Date().toDateString();
+      const lastSessionDate = localStorage.getItem('bondhu_last_session_date');
+      
+      if (lastSessionDate !== today) {
+        // New day, show quick responses
+        setShowQuickResponses(true);
+        localStorage.setItem('bondhu_last_session_date', today);
+      } else {
+        // Same day, hide quick responses
+        setShowQuickResponses(false);
+      }
+    };
+    
+    checkDailySession();
+  }, []);
 
   // Get user ID from Supabase auth
   useEffect(() => {
@@ -74,9 +93,6 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
         const history = await chatApi.getChatHistory(userId, 50, 0);
         
         if (history.messages && history.messages.length > 0) {
-          // If there's existing history, user has already sent messages
-          setHasUserSentMessage(true);
-          
           // Convert history to Message format (already in chronological order from backend)
           const historyMessages: Message[] = history.messages.map((item, index) => [
             {
@@ -135,8 +151,8 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
       return;
     }
 
-    // Mark that user has sent a message in this session
-    setHasUserSentMessage(true);
+    // Hide quick responses after first message
+    setShowQuickResponses(false);
 
     const userMessage: Message = {
       id: Date.now(),
@@ -488,26 +504,30 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Quick Messages - Only show if user hasn't sent a message yet */}
-            {!hasUserSentMessage && (
-              <div className="px-6 py-4 border-t bg-gradient-to-r from-primary/2 to-primary/5">
-                <p className="text-xs font-medium text-muted-foreground mb-3">Quick responses:</p>
-                <div className="flex flex-wrap gap-2">
-                  {quickMessages.map((quick, index) => (
-                    <Button
-                      key={index}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs hover:bg-primary/10 hover:border-primary/30 transition-colors px-3 py-1"
-                      onClick={() => handleQuickMessage(quick.text)}
-                    >
-                      <span className="mr-1">{quick.emoji}</span>
-                      {quick.text}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Quick Messages - Maintain space even when hidden */}
+            <div className="px-6 py-4 border-t bg-gradient-to-r from-primary/2 to-primary/5 min-h-[120px]">
+              {showQuickResponses ? (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Quick responses:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {quickMessages.map((quick, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs hover:bg-primary/10 hover:border-primary/30 transition-colors px-3 py-1"
+                        onClick={() => handleQuickMessage(quick.text)}
+                      >
+                        <span className="mr-1">{quick.emoji}</span>
+                        {quick.text}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="h-full" />
+              )}
+            </div>
 
             {/* Input Area */}
             <div className="p-6 border-t bg-gradient-to-r from-primary/3 to-primary/6 rounded-b-xl">
