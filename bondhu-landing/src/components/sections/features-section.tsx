@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import MagicBento from "@/components/ui/magic-bento"
+import { GamifiedDiscoveryCard } from "@/components/cards/gamified-discovery-card"
 
 export function FeaturesSection() {
   const bentoCards = [
@@ -13,19 +14,17 @@ export function FeaturesSection() {
       label: "Personalized",
     },
     {
-      title: "Emotional Understanding",
-      description: "Recognizes mood patterns and provides contextual emotional support when you need it most",
-      label: "Empathetic",
-    },
-    {
-      title: "Gamified Discovery",
-      description: "Fun RPG scenarios and interactive games help you discover your personality traits naturally",
-      label: "Engaging",
-    },
-    {
       title: "Proactive Care",
       description: "Initiates check-ins and suggests activities based on your well-being patterns and preferences",
       label: "Wellness",
+    },
+    {
+      customContent: <GamifiedDiscoveryCard />,
+    },
+    {
+      title: "Emotional Understanding",
+      description: "Recognizes mood patterns and provides contextual emotional support when you need it most. Uses advanced sentiment analysis to detect subtle emotional cues in your conversations and offers personalized coping strategies, breathing exercises, and grounding techniques.",
+      label: "Empathetic",
     },
     {
       title: "Privacy First",
@@ -94,7 +93,7 @@ export function FeaturesSection() {
                 Experience the Difference
               </h3>
               <p className="text-muted-foreground mb-6">
-                Join users who&apos;ve found their perfect AI companion
+                Join users who've found their perfect AI companion
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 <Badge variant="outline">Personality-aware</Badge>
