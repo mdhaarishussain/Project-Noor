@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Heart, Mail, Globe, ArrowRight, Sparkles, Menu, X, Moon, Sun } from 'lucide-react';
+import { Heart, ArrowRight, Sparkles, Menu, X, Moon, Sun } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
 
 interface TeamMember {
   id: number;
@@ -21,15 +23,8 @@ interface TeamMember {
 export default function TeamPage() {
   const [hoveredMember, setHoveredMember] = useState<number | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [scrollY, setScrollY] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   useEffect(() => {
     if (darkMode) {
@@ -131,34 +126,38 @@ export default function TeamPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <a href="/" className="flex items-center group cursor-pointer">
-                <img 
+              <Link href="/" className="flex items-center group cursor-pointer">
+                <Image 
                   src="/Light mode logo.svg" 
                   alt="Bondhu" 
+                  width={56}
+                  height={56}
                   className="h-14 w-auto object-contain dark:hidden"
                 />
-                <img 
+                <Image 
                   src="/Dark mode logo.svg" 
                   alt="Bondhu" 
+                  width={56}
+                  height={56}
                   className="h-14 w-auto object-contain hidden dark:block"
                 />
-              </a>
+              </Link>
             </div>  
 
             <div className="flex items-center space-x-2">
               <nav className="hidden md:flex items-center space-x-1">
-                <a
+                <Link
                   href="/"
                   className="px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
                 >
                   Home
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/team"
                   className="px-4 py-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold"
                 >
                   Team
-                </a>
+                </Link>
               </nav>
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -187,20 +186,20 @@ export default function TeamPage() {
 
           {mobileMenuOpen && (
             <nav className="md:hidden mt-3 pb-2 space-y-2">
-              <a
+              <Link
                 href="/"
                 className="block px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Home
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/team"
                 className="block px-4 py-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Team
-              </a>
+              </Link>
             </nav>
           )}
         </div>
@@ -251,7 +250,7 @@ export default function TeamPage() {
               animation: 'appear 0.5s ease-out 0.3s forwards'
             }}
           >
-            We're a diverse team of 4th year students from NSEC united by one mission: making AI accessible and effective for everyone who needs it.
+            We&apos;re a diverse team of 4th year students from NSEC united by one mission: making AI accessible and effective for everyone who needs it.
           </p>
 
           {/* Stats Grid */}
@@ -321,10 +320,11 @@ export default function TeamPage() {
               <div className="grid md:grid-cols-5 gap-6 p-8">
                 <div className="md:col-span-2 relative">
                   <div className="relative overflow-hidden rounded-2xl aspect-square">
-                    <img
+                    <Image
                       src={mentor.image}
                       alt={mentor.name}
-                      className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                      fill
+                      className="object-cover transition-all duration-700 group-hover:scale-110"
                     />
                     
                     <div className="absolute top-0 left-0 w-16 h-16 border-t-4 border-l-4 border-purple-500 rounded-tl-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" />
@@ -417,10 +417,11 @@ export default function TeamPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-blue-500/0 to-indigo-500/0 group-hover:from-indigo-500/5 group-hover:via-blue-500/5 group-hover:to-indigo-500/5 dark:group-hover:from-indigo-500/10 dark:group-hover:via-blue-500/10 dark:group-hover:to-indigo-500/10 transition-all duration-500 z-0" />
                 
                 <div className="relative overflow-hidden aspect-square">
-                  <img
+                  <Image
                     src={member.image}
                     alt={member.name}
-                    className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                    fill
+                    className="object-cover transition-all duration-700 group-hover:scale-110"
                   />
                   
                   <div className={`absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/70 to-transparent flex items-end justify-center pb-5 transition-all duration-500 pointer-events-none z-50 ${
@@ -496,17 +497,17 @@ export default function TeamPage() {
               </p>
               
               <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                We're building Agentic AI-powered digital twin that's always there when you need it, designed to make emotional well-being more human and meaningful,
+                We&apos;re building Agentic AI-powered digital twin that&apos;s always there when you need it, designed to make emotional well-being more human and meaningful,
                 combining cutting-edge technology with genuine empathy and care.
               </p>
 
-              <a 
+              <Link 
                 href="/"
                 className="inline-flex items-center gap-2 px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 rounded-full text-white font-bold text-base md:text-lg hover:shadow-2xl hover:shadow-indigo-500/30 transition-all duration-300 hover:scale-105 group mt-2 md:mt-4"
               >
                 Explore Bondhu
                 <ArrowRight className="w-5 md:w-6 h-5 md:h-6 group-hover:translate-x-1 transition-transform duration-300" />
-              </a>
+              </Link>
             </div>
 
             <div className="grid grid-cols-2 gap-4 md:gap-6">
