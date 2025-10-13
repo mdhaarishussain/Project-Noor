@@ -10,6 +10,7 @@ import { PricingSection } from "@/components/sections/pricing-section"
 import { CurvedMarqueeSection } from "@/components/sections/curved-marquee-section"
 import { Footer } from "@/components/sections/footer"
 import { FloatingCTA } from "@/components/floating-cta"
+import { FAQSection } from "@/components/sections/faq-section"
 
 export default function Home() {
   return (
@@ -24,6 +25,7 @@ export default function Home() {
         <FeaturesSection />
         <TechnicalDifferentiationPanel />
         <PricingSection />
+        <FAQSection />
         <CurvedMarqueeSection />
       </main>
       <Footer />

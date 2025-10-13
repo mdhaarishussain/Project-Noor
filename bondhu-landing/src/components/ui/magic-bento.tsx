@@ -8,6 +8,7 @@ export interface BentoCardProps {
   label?: string;
   textAutoHide?: boolean;
   disableAnimations?: boolean;
+  customContent?: React.ReactNode;
 }
 
 export interface BentoProps {
@@ -705,6 +706,34 @@ const MagicBento: React.FC<BentoProps> = ({
               "--glow-radius": "200px",
             } as React.CSSProperties;
 
+            // If custom content is provided, use it
+            if (card.customContent) {
+              if (enableStars) {
+                return (
+                  <ParticleCard
+                    key={index}
+                    className={baseClassName}
+                    style={cardStyle}
+                    disableAnimations={shouldDisableAnimations}
+                    particleCount={particleCount}
+                    glowColor={glowColor}
+                    enableTilt={enableTilt}
+                    clickEffect={clickEffect}
+                    enableMagnetism={enableMagnetism}
+                  >
+                    {card.customContent}
+                  </ParticleCard>
+                );
+              }
+              
+              return (
+                <div key={index} className={baseClassName} style={cardStyle}>
+                  {card.customContent}
+                </div>
+              );
+            }
+
+            // Default card rendering
             if (enableStars) {
               return (
                 <ParticleCard
