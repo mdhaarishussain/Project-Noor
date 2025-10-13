@@ -375,7 +375,12 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
 
           {/* Messages Area */}
           <CardContent className="p-0">
-            <div className="h-[50vh] max-h-[500px] min-h-[400px] overflow-y-auto p-6 space-y-6 scroll-smooth">
+            <div className={cn(
+              "overflow-y-auto p-6 space-y-6 scroll-smooth transition-all duration-300",
+              showQuickResponses 
+                ? "h-[50vh] max-h-[500px] min-h-[400px]"
+                : "h-[60vh] max-h-[620px] min-h-[520px]"
+            )}>
               {isLoadingHistory ? (
                 <div className="flex flex-col items-center justify-center h-full space-y-3">
                   <BondhuAvatar 
