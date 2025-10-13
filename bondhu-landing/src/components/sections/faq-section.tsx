@@ -134,7 +134,7 @@ export function FAQSection() {
     ];
     
     return (
-        <section className="py-20 bg-secondary/20">
+        <section id="faq" className="py-20 bg-secondary/20">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <motion.div
                     className="text-center mb-16"
