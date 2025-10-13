@@ -504,30 +504,26 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Quick Messages - Maintain space even when hidden */}
-            <div className="px-6 py-4 border-t bg-gradient-to-r from-primary/2 to-primary/5 min-h-[120px]">
-              {showQuickResponses ? (
-                <>
-                  <p className="text-xs font-medium text-muted-foreground mb-3">Quick responses:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {quickMessages.map((quick, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs hover:bg-primary/10 hover:border-primary/30 transition-colors px-3 py-1"
-                        onClick={() => handleQuickMessage(quick.text)}
-                      >
-                        <span className="mr-1">{quick.emoji}</span>
-                        {quick.text}
-                      </Button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="h-full" />
-              )}
-            </div>
+            {/* Quick Messages - Show only on first session of the day */}
+            {showQuickResponses && (
+              <div className="px-6 py-4 border-t bg-gradient-to-r from-primary/2 to-primary/5">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Quick responses:</p>
+                <div className="flex flex-wrap gap-2">
+                  {quickMessages.map((quick, index) => (
+                    <Button
+                      key={index}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs hover:bg-primary/10 hover:border-primary/30 transition-colors px-3 py-1"
+                      onClick={() => handleQuickMessage(quick.text)}
+                    >
+                      <span className="mr-1">{quick.emoji}</span>
+                      {quick.text}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Input Area */}
             <div className="p-6 border-t bg-gradient-to-r from-primary/3 to-primary/6 rounded-b-xl">
