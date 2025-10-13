@@ -50,14 +50,14 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ENABLE_REDIS=true
 
-      # Application settings - reduced for low memory
+      # Application settings - optimized for production concurrency
       - PYTHONPATH=/app
       - ENVIRONMENT=production
       - LOG_LEVEL=WARNING
       - ENABLE_RL=${ENABLE_RL:-false}
       - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-false}
-      - WORKERS=${WORKERS:-1}
-      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-10}
+      - WORKERS=${WORKERS:-4}
+      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-40}
     env_file:
       - .env
     volumes:

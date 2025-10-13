@@ -172,6 +172,33 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
       }
       
       setIsTyping(false);
+      
+      // Refetch chat history after sending to ensure consistency
+      // This prevents cache staleness and ensures all messages are persisted
+      try {
+        const updatedHistory = await chatApi.getChatHistory(userId, 50, 0, true); // bustCache = true
+        if (updatedHistory.messages && updatedHistory.messages.length > 0) {
+          const historyMessages: Message[] = updatedHistory.messages.map((item, index) => [
+            {
+              id: Date.now() - (updatedHistory.messages.length * 2) + (index * 2),
+              sender: 'user' as const,
+              message: item.message,
+              timestamp: new Date(item.created_at).toLocaleTimeString(),
+            },
+            {
+              id: Date.now() - (updatedHistory.messages.length * 2) + (index * 2) + 1,
+              sender: 'bondhu' as const,
+              message: item.response,
+              timestamp: new Date(item.created_at).toLocaleTimeString(),
+              hasPersonalityContext: item.has_personality_context,
+            }
+          ]).flat();
+          setMessages(historyMessages);
+        }
+      } catch (refetchErr) {
+        console.error('Failed to refetch chat history:', refetchErr);
+        // Don't show error - message was already added to UI
+      }
     } catch (err) {
       console.error('Chat error:', err);
       setError(err instanceof Error ? err.message : "Failed to send message. Please try again.");

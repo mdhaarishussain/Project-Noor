@@ -116,6 +116,49 @@ def invalidate_user_chat_cache(user_id: str):
         logger.warning(f"Failed to invalidate cache for user {user_id}: {e}")
 
 
+async def validate_session_ownership(session_id: str, user_id: str) -> bool:
+    """
+    Validate that a session belongs to the specified user.
+    Prevents session hijacking and cross-user data access.
+    
+    Args:
+        session_id: Session ID to validate
+        user_id: User ID claiming ownership
+        
+    Returns:
+        bool: True if session belongs to user or is new, False otherwise
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        # Query first message in this session
+        response = supabase.table('chat_messages') \
+            .select('user_id') \
+            .eq('session_id', session_id) \
+            .limit(1) \
+            .execute()
+        
+        # If no messages exist, this is a new session - allow
+        if not response.data or len(response.data) == 0:
+            return True
+        
+        # Verify the session belongs to the requesting user
+        session_owner_id = response.data[0]['user_id']
+        if session_owner_id != user_id:
+            logger.warning(
+                f"🚨 Session hijacking attempt: user {user_id} tried to access "
+                f"session {session_id} owned by {session_owner_id}"
+            )
+            return False
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error validating session ownership: {e}")
+        # Fail open for new sessions, but log the error
+        return True
+
+
 # Endpoints
 @router.post("/send", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 async def send_chat_message(request: ChatRequest):
@@ -131,6 +174,18 @@ async def send_chat_message(request: ChatRequest):
     start_time = asyncio.get_event_loop().time()
     
     try:
+        # Generate session ID if not provided
+        session_id = request.session_id or str(uuid.uuid4())
+        
+        # 🔒 SECURITY: Validate session ownership to prevent hijacking
+        if request.session_id:  # Only validate existing sessions, not new ones
+            is_valid = await validate_session_ownership(request.session_id, request.user_id)
+            if not is_valid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Session does not belong to user. Possible session hijacking attempt."
+                )
+        
         config = get_config()
         personality_service = get_personality_service()
         memory_service = get_memory_service()
@@ -295,32 +350,44 @@ async def get_chat_history(
             )
         
         # Group messages into conversation pairs (user message + AI response)
-        # First pass: collect all messages by session_id
-        sessions = {}
-        for msg in (response.data if response.data else []):
-            session_id = msg.get('session_id', msg['id'])
-            if session_id not in sessions:
-                sessions[session_id] = {'user': None, 'ai': None}
-            
-            if msg['sender_type'] == 'user':
-                sessions[session_id]['user'] = msg
-            elif msg['sender_type'] == 'ai':
-                sessions[session_id]['ai'] = msg
+        # Group by unique message ID instead of overwriting by session_id
+        # Sort messages by timestamp to maintain order
+        sorted_messages = sorted(
+            (response.data if response.data else []),
+            key=lambda x: x.get('timestamp', '')
+        )
         
-        # Second pass: create ChatHistoryItem for complete pairs
         messages = []
-        for session_id, pair in sessions.items():
-            if pair['user'] and pair['ai']:
-                # Use user message timestamp as the conversation timestamp
-                messages.append(ChatHistoryItem(
-                    id=pair['ai']['id'],
-                    message=pair['user']['message_text'],
-                    response=pair['ai']['message_text'],
-                    has_personality_context=pair['user'].get('mood_detected') is not None,
-                    created_at=pair['user']['timestamp']  # Always use user timestamp
-                ))
+        i = 0
+        while i < len(sorted_messages):
+            msg = sorted_messages[i]
+            
+            # If this is a user message, look for the next AI response
+            if msg['sender_type'] == 'user':
+                user_msg = msg
+                ai_msg = None
+                
+                # Look ahead for matching AI response (same session_id, next message)
+                if i + 1 < len(sorted_messages):
+                    next_msg = sorted_messages[i + 1]
+                    if (next_msg['sender_type'] == 'ai' and 
+                        next_msg.get('session_id') == msg.get('session_id')):
+                        ai_msg = next_msg
+                        i += 1  # Skip the AI message in next iteration
+                
+                # Only add if we have both user and AI messages
+                if ai_msg:
+                    messages.append(ChatHistoryItem(
+                        id=ai_msg['id'],
+                        message=user_msg['message_text'],
+                        response=ai_msg['message_text'],
+                        has_personality_context=user_msg.get('mood_detected') is not None,
+                        created_at=user_msg['timestamp']
+                    ))
+            
+            i += 1
         
-        logger.info(f"Created {len(messages)} conversation pairs from {len(sessions)} sessions")
+        logger.info(f"Created {len(messages)} conversation pairs from {len(sorted_messages)} raw messages")
         
         # Sort by timestamp (oldest first for chronological display - oldest at top, newest at bottom)
         messages.sort(key=lambda x: x.created_at, reverse=False)

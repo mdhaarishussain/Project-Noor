@@ -99,11 +99,14 @@ export const chatApi = {
   getChatHistory: async (
     userId: string,
     limit: number = 20,
-    offset: number = 0
+    offset: number = 0,
+    bustCache: boolean = false
   ): Promise<ChatHistoryResponse> => {
     try {
+      // Add timestamp to bust cache after sending new messages
+      const cacheBuster = bustCache ? `&_t=${Date.now()}` : '';
       const response = await fetch(
-        `${API_BASE_URL}/api/v1/chat/history/${userId}?limit=${limit}&offset=${offset}`,
+        `${API_BASE_URL}/api/v1/chat/history/${userId}?limit=${limit}&offset=${offset}${cacheBuster}`,
         {
           method: 'GET',
           headers: {
