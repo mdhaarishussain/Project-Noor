@@ -13,10 +13,15 @@ export const metadata: Metadata = {
   description: "Meet your digital বন্ধু - an AI companion that adapts to your personality, grows with your journey, and becomes the friend you've always needed.",
   keywords: ["AI", "mental health", "companion", "chatbot", "wellness", "friendship", "Gen Z"],
   authors: [{ name: "Bondhu Team" }],
+  robots: "index, follow",
+  alternates: {
+    canonical: "https://www.bondhu.tech/",
+  },
   openGraph: {
     title: "Bondhu - AI Mental Health Companion",
     description: "Meet your digital বন্ধু - an AI companion that adapts to your personality, grows with your journey, and becomes the friend you've always needed.",
     type: "website",
+    url: "https://www.bondhu.tech/",
   },
 };
 
