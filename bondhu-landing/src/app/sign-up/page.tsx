@@ -156,7 +156,7 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 relative overflow-hidden">
       {/* Background Animation */}
       <HeroBackground intensity="subtle" className="opacity-30" />
-      
+
       <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
         {/* Left Panel - Branding and Content */}
         <div className="hidden lg:flex lg:w-3/5 p-6 xl:p-12 flex-col justify-between relative">
@@ -387,7 +387,7 @@ export default function SignUpPage() {
                   />
                   <label htmlFor="terms_of_service" className="text-sm leading-5 text-foreground">
                     I accept the{" "}
-                    <Link href="/terms" className="text-primary hover:underline font-medium" target="_blank">
+                    <Link href="/terms-and-conditions" className="text-primary hover:underline font-medium" target="_blank">
                       Terms of Service
                     </Link>
                   </label>

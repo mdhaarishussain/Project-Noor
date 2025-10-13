@@ -27,7 +27,7 @@ export function Footer() {
     { name: "Blog", href: "#blog" },
     { name: "Help Center", href: "#help" },
     { name: "Community", href: "#community" },
-    { name: "Privacy Policy", href: "#privacy" },
+    { name: "Privacy Policy", href: "/privacy" },
   ]
 
   const socialLinks = [
@@ -53,16 +53,16 @@ export function Footer() {
               <Logo width={120} height={40} />
             </div>
             <p className="text-muted-foreground mb-6 max-w-sm">
-              Your AI companion for mental wellness. Designed for Gen Z, built with empathy, 
+              Your AI companion for mental wellness. Designed for Gen Z, built with empathy,
               powered by advanced AI technology.
             </p>
-            
+
             {/* Newsletter Signup */}
             <div className="mb-6">
               <h4 className="font-semibold mb-3">Stay Updated</h4>
               <div className="flex space-x-2">
-                <Input 
-                  placeholder="Enter your email" 
+                <Input
+                  placeholder="Enter your email"
                   className="flex-1"
                   type="email"
                 />
@@ -88,7 +88,7 @@ export function Footer() {
             <ul className="space-y-2">
               {productLinks.map((link) => (
                 <li key={link.name}>
-                  <Link 
+                  <Link
                     href={link.href}
                     className="text-muted-foreground hover:text-foreground transition-colors text-sm"
                   >
@@ -110,7 +110,7 @@ export function Footer() {
             <ul className="space-y-2">
               {companyLinks.map((link) => (
                 <li key={link.name}>
-                  <Link 
+                  <Link
                     href={link.href}
                     className="text-muted-foreground hover:text-foreground transition-colors text-sm"
                   >
@@ -132,7 +132,7 @@ export function Footer() {
             <ul className="space-y-2 mb-6">
               {resourceLinks.map((link) => (
                 <li key={link.name}>
-                  <Link 
+                  <Link
                     href={link.href}
                     className="text-muted-foreground hover:text-foreground transition-colors text-sm"
                   >
@@ -146,7 +146,7 @@ export function Footer() {
             <ul className="space-y-2">
               {socialLinks.map((link) => (
                 <li key={link.name}>
-                  <Link 
+                  <Link
                     href={link.href}
                     className="text-muted-foreground hover:text-foreground transition-colors text-sm inline-flex items-center"
                     target="_blank"
@@ -180,10 +180,10 @@ export function Footer() {
           </div>
 
           <div className="flex items-center space-x-4 text-sm">
-            <Link href="#terms" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/terms-and-conditions" className="text-muted-foreground hover:text-foreground transition-colors">
               Terms
             </Link>
-            <Link href="#privacy" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
               Privacy
             </Link>
             <Link href="#cookies" className="text-muted-foreground hover:text-foreground transition-colors">

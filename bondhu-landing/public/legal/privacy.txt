@@ -1,0 +1,210 @@
+PRIVACY POLICY
+Bondhu AI — Privacy Policy
+
+Last Updated: October 2025
+
+This Privacy Policy explains how Bondhu AI ("we," "our," or "Bondhu") collects, uses, stores, shares, and protects your personal information when you use our Platform at bondhu.tech. This policy complies with the Digital Personal Data Protection Act, 2023 (DPDP Act), the Information Technology Act, 2000, and the Mental Healthcare Act, 2017.​
+
+1. Information We Collect
+We collect the following categories of personal data necessary to provide and improve Bondhu's services:​
+
+1.1 Account Data
+
+Email address
+
+Name (optional)
+
+Authentication details (email or Google OAuth credentials)
+
+1.2 Usage Data
+
+Conversation logs and chat history
+
+User preferences and settings
+
+Activity patterns and feature usage
+
+1.3 Personality Data
+
+Responses to personality assessments, quizzes, and games
+
+Behavioral insights derived from interactions
+
+Emotional well-being indicators
+
+1.4 Technical Data
+
+Device type and operating system
+
+Browser type and version
+
+IP address (for security, analytics, and fraud prevention)
+
+Cookies and similar tracking technologies
+
+2. Legal Basis for Data Processing
+We process your personal data based on the following legal grounds:​
+
+Consent: You provide explicit consent when creating an account and using our services
+
+Contractual necessity: To perform our services as outlined in the Terms of Service
+
+Legitimate interests: To improve services, ensure security, and prevent fraud
+
+Legal obligations: To comply with Indian laws and regulations
+
+3. How We Use Your Data
+Your personal information is used for the following purposes:​
+
+Service delivery: Provide personalized AI conversations, personality insights, and analytics
+
+AI improvement: Train and improve AI models and adaptive personality response systems
+
+Account management: Maintain account functionality, security, and authentication
+
+Communication: Send service updates, feature announcements, and support responses
+
+Analytics: Understand usage patterns to enhance user experience
+
+Security: Detect and prevent fraud, abuse, and security threats
+
+Legal compliance: Meet legal and regulatory obligations
+
+4. Data Sharing and Third-Party Services
+4.1 We Do Not Sell Your Data
+
+Bondhu does not sell, rent, or trade your personal information to third parties for marketing purposes.​
+
+4.2 Limited Sharing with Third Parties
+
+We may share your data with trusted third-party service providers strictly for operational purposes, including:​
+
+AI service providers (e.g., Gemini, Anthropic) for generating responses and personality analysis
+
+Cloud hosting providers (e.g., Supabase) for secure data storage
+
+Payment processors for handling transactions
+
+Analytics tools for understanding user behavior (anonymized where possible)
+
+All third-party partners are bound by strict confidentiality and data protection agreements and process data only as instructed by Bondhu.​
+
+4.3 Legal Disclosures
+
+We may disclose your information if required by law, court order, or government authority, or to protect our legal rights.​
+
+5. Data Security Measures
+We implement industry-standard security practices to protect your personal data:​
+
+Encryption: All data is encrypted in transit (using HTTPS/TLS) and at rest
+
+Row-Level Security (RLS): Implemented via Supabase backend to isolate user data
+
+Access controls: Restricted access to personal data on a need-to-know basis
+
+Regular audits: Periodic security assessments and vulnerability testing
+
+Important Note: While we employ strong security measures, no online system is 100% secure. Users share data at their own discretion.​
+
+6. Data Retention
+Active accounts: Personal data is retained as long as your account remains active.​
+
+Inactive accounts: Data may be retained for up to 12 months after account inactivity before deletion
+
+Deleted accounts: Upon account deletion, personal data is permanently erased within 30 days, except where retention is required by law.​
+
+Legal compliance: Some data may be retained longer to comply with legal obligations, resolve disputes, or enforce agreements.​
+
+7. Your Privacy Rights
+Under the DPDP Act, 2023 and applicable Indian laws, you have the following rights:​
+
+7.1 Right to Access
+
+Request access to view the personal data we hold about you.​
+
+7.2 Right to Correction
+
+Request correction or updating of inaccurate or incomplete personal data.​
+
+7.3 Right to Erasure ("Right to be Forgotten")
+
+Request deletion of your personal data, subject to legal retention requirements.​
+
+7.4 Right to Data Portability
+
+Request export of your personal data in a machine-readable format.​
+
+7.5 Right to Withdraw Consent
+
+Withdraw your consent for data processing at any time (note: this may limit some features).​
+
+7.6 Right to Grievance Redressal
+
+File a complaint regarding data processing practices.​
+
+How to Exercise Your Rights:
+
+To exercise any of these rights, email us at bondhuaitech@gmail.com. We will respond to your request within 30 days of receipt.​
+
+8. Children's Privacy and Parental Consent
+Bondhu does not knowingly collect personal data from children under 13 years of age.​
+
+Users aged 13–17 years may only use Bondhu with verifiable parental or legal guardian consent.​
+
+Parents or guardians can review, modify, or request deletion of their child's data by contacting us.​
+
+If we discover that we have inadvertently collected data from a child under 13 without parental consent, we will promptly delete such data.​
+
+9. Cookies and Tracking Technologies
+Bondhu uses cookies and similar technologies to:​
+
+Maintain user sessions and authentication
+
+Analyze usage patterns and improve services
+
+Provide personalized experiences
+
+You can manage cookie preferences through your browser settings. Note that disabling cookies may affect Platform functionality.​
+
+10. International Data Transfers
+Your data may be transferred to and processed in locations outside India for cloud hosting and AI processing purposes. We ensure that all such transfers comply with applicable data protection laws and include appropriate safeguards.​
+
+11. Data Breach Notification
+In the event of a data breach that may compromise your personal information, we will:​
+
+Notify affected users via email within 72 hours of discovering the breach
+
+Report the breach to the Data Protection Board of India as required by law
+
+Take immediate steps to mitigate harm and prevent future breaches
+
+12. Grievance Redressal Officer
+For privacy-related concerns, complaints, or requests, you may contact our Grievance Redressal Officer:​
+
+📧 Email: bondhuaitech@gmail.com
+🌐 Website: bondhu.tech
+📍 Location: Kolkata, India
+
+We will acknowledge your complaint within 24 hours and resolve it within 30 days.​
+
+13. Updates to This Privacy Policy
+We may update this Privacy Policy from time to time to reflect changes in our practices or legal requirements.​
+
+Updated versions will be posted on this page with a revised "Last Updated" date.​
+
+Material changes will be communicated via email or prominent notice on the Platform.​
+
+Continued use after changes constitutes acceptance of the updated Privacy Policy.​
+
+14. Language Availability
+This Privacy Policy is available in English. In compliance with the DPDP Act, we are working to make this policy available in additional Indian languages listed in the 8th Schedule of the Indian Constitution.​
+
+15. Contact Information
+For questions or concerns regarding this Privacy Policy:
+
+📧 Email: bondhuaitech@gmail.com
+🌐 Website: bondhu.tech
+🏙 Location: Kolkata, India
+
+16. Governing Law
+This Privacy Policy is governed by the laws of India, including the Digital Personal Data Protection Act, 2023, the Information Technology Act, 2000, and the Mental Healthcare Act, 2017.
