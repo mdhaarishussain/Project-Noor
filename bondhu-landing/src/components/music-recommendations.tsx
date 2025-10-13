@@ -163,6 +163,9 @@ export default function MusicRecommendations({
         // Handle URL parameters after OAuth callback
         const urlParams = new URLSearchParams(window.location.search)
         if (urlParams.get('spotify_connected') === 'true') {
+            // Persist a per-user browser cache flag so the same user in this browser
+            // doesn't need to re-initiate the OAuth flow on subsequent visits.
+            try { localStorage.setItem(`music_spotify_connected_${userId}`, 'true') } catch (e) { /* ignore */ }
             setSpotifyConnected(true)
             toast.success('🎵 Spotify connected successfully!')
             // Clean up URL parameters
@@ -442,14 +445,41 @@ export default function MusicRecommendations({
         window.open(song.external_url, '_blank')
     }
 
+    const SPOTIFY_CACHE_KEY = `music_spotify_connected_${userId}`
+
     const checkSpotifyConnection = async () => {
+        // If token was provided via props (SSR hydration), treat as connected
         if (spotifyToken) {
+            localStorage.setItem(SPOTIFY_CACHE_KEY, 'true')
             setSpotifyConnected(true)
             return
         }
 
+        // First check browser cache for this user
         try {
-            // Check if user has stored Spotify tokens
+            const cached = localStorage.getItem(SPOTIFY_CACHE_KEY)
+            if (cached === 'true') {
+                // Optimistically assume connected; verify in background
+                setSpotifyConnected(true)
+                // Verify server-side stored connection; if missing, clear cache
+                try {
+                    const resp = await apiClient.get(`/agents/music/status/${userId}`) as { connected: boolean }
+                    if (!resp.connected) {
+                        localStorage.removeItem(SPOTIFY_CACHE_KEY)
+                        setSpotifyConnected(false)
+                        console.log('Cached spotify flag invalid - cleared')
+                    }
+                } catch (err) {
+                    console.log('Failed to verify cached spotify connection:', err)
+                }
+                return
+            }
+        } catch (err) {
+            console.warn('Unable to access localStorage for spotify cache', err)
+        }
+
+        // No browser cache - ask server if the user has a stored connection
+        try {
             const response = await apiClient.get(`/agents/music/status/${userId}`) as {
                 connected: boolean
                 spotify_user_id?: string
@@ -457,12 +487,17 @@ export default function MusicRecommendations({
             }
 
             if (response.connected) {
+                // Persist an indicator in browser cache for quicker subsequent loads
+                try { localStorage.setItem(SPOTIFY_CACHE_KEY, 'true') } catch (e) { /* ignore */ }
                 setSpotifyConnected(true)
                 toast.success('🎵 Spotify connection restored!')
+            } else {
+                setSpotifyConnected(false)
             }
         } catch (error) {
             // No stored connection found, stay disconnected
             console.log('No existing Spotify connection found')
+            setSpotifyConnected(false)
         }
     }
 
@@ -486,6 +521,7 @@ export default function MusicRecommendations({
             localStorage.removeItem(`music_feedback_${userId}`)
             localStorage.removeItem(`music_manual_count_${userId}`)
             localStorage.removeItem(`music_last_reset_${userId}`)
+            try { localStorage.removeItem(`music_spotify_connected_${userId}`) } catch (e) { /* ignore */ }
 
             // Reset feedback state
             setFeedbackState({})
@@ -540,20 +576,7 @@ export default function MusicRecommendations({
                                 <Music2 className="h-5 w-5 mr-2" />
                                 Connect Spotify
                             </Button>
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                onClick={() => {
-                                    setSpotifyConnected(true)
-                                    toast.success('🎵 Using personality-based recommendations!')
-                                    // Immediately load persona-only recommendations
-                                    fetchRecommendations('initial')
-                                }}
-                                className="border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                            >
-                                <Sparkles className="h-5 w-5 mr-2" />
-                                Continue Without Spotify
-                            </Button>
+                            {/* Removed 'Continue Without Spotify' option - connecting to Spotify is required for personalized history-based recommendations. */}
                         </div>
                     </div>
                 </CardContent>

@@ -20,7 +20,7 @@ function SignInForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo') || '/dashboard'
@@ -129,7 +129,7 @@ function SignInForm() {
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 relative overflow-hidden">
       {/* Background Animation */}
       <HeroBackground intensity="subtle" className="opacity-30" />
-      
+
       <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
         {/* Left Panel - Branding and Content */}
         <div className="hidden lg:flex lg:w-3/5 p-6 xl:p-12 flex-col justify-between relative">
@@ -324,7 +324,7 @@ function SignInForm() {
                     Remember me
                   </label>
                 </div>
-                <Link 
+                <Link
                   href="/forgot-password"
                   className="text-sm text-primary hover:underline font-medium"
                 >
@@ -333,8 +333,8 @@ function SignInForm() {
               </div>
 
               {/* Submit Button */}
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full h-10 sm:h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
                 disabled={isLoading}
               >

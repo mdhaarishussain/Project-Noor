@@ -4,15 +4,15 @@
  */
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  async redirects() {
-    return [
-      {
-        source: '/terms-and-conditions',
-        destination: '/terms-of-service',
-        permanent: true,
-      },
-    ]
-  },
+    async redirects() {
+        return [
+            {
+                source: '/terms-and-conditions',
+                destination: '/terms-of-service',
+                permanent: true,
+            },
+        ]
+    },
 }
 
 module.exports = nextConfig
