@@ -234,12 +234,14 @@ async def send_chat_message(request: ChatRequest):
         conversation_history = await _get_conversation_history(request.user_id, session_id)
         
         # Generate AI response using personality-aware LLM
+        # Include conversation history to maintain context
         chat_service = get_chat_service()
         result = await chat_service.send_message(
             user_id=request.user_id,
             message=request.message,
-            include_history=False,
-            session_id=session_id
+            include_history=True,  # Enable conversation context
+            session_id=session_id,
+            comprehensive_context=comprehensive_context if comprehensive_context else None
         )
         
         # Extract response text from result

@@ -6,9 +6,10 @@ Handles personality-aware chat interactions using Google Gemini Pro
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
+import time
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from core.config import get_config
 from core.database.personality_service import get_personality_service
@@ -21,6 +22,10 @@ class GeminiChatService:
     Service for handling chat interactions with Google Gemini Pro.
     Loads personality context and generates empathetic responses.
     """
+    
+    # Rate limiting - track last request time per user
+    _user_last_request = {}
+    _rate_limit_delay = 1.0  # 1 second minimum between requests per user
     
     def __init__(self):
         """Initialize Gemini chat service with configuration."""
@@ -38,7 +43,8 @@ class GeminiChatService:
         user_id: str, 
         message: str,
         include_history: bool = False,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        comprehensive_context: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Send a message and get personality-aware response.
@@ -46,14 +52,28 @@ class GeminiChatService:
         Args:
             user_id: The user's ID
             message: The user's message
-            include_history: Whether to include chat history (future feature)
+            include_history: Whether to include chat history
             session_id: Optional session ID for tracking conversations
+            comprehensive_context: Additional context to include in the system prompt
             
         Returns:
             Dict containing response, personality context, and metadata
         """
         try:
             logger.info(f"Processing message for user {user_id}")
+            
+            # Rate limiting check
+            current_time = time.time()
+            last_request_time = self._user_last_request.get(user_id, 0)
+            time_since_last_request = current_time - last_request_time
+            
+            if time_since_last_request < self._rate_limit_delay:
+                wait_time = self._rate_limit_delay - time_since_last_request
+                logger.warning(f"Rate limit exceeded for user {user_id}. Waiting {wait_time:.2f} seconds.")
+                time.sleep(wait_time)
+            
+            # Update last request time
+            self._user_last_request[user_id] = time.time()
             
             # Load personality context
             personality_data = await self._load_personality_context(user_id)
@@ -64,11 +84,25 @@ class GeminiChatService:
             # Create system prompt
             system_prompt = self._create_system_prompt(personality_data)
             
-            # Build messages
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=message)
-            ]
+            # Add comprehensive context if provided
+            if comprehensive_context:
+                system_prompt = f"{system_prompt}\n\n{comprehensive_context}"
+            
+            # Build messages with conversation history if requested
+            messages = [SystemMessage(content=system_prompt)]
+            
+            # Include conversation history if requested
+            if include_history:
+                chat_history = await self.get_chat_history(user_id, session_id, limit=15)
+                # Use summarization for efficient context management
+                summarized_context = self.summarize_conversation_context(chat_history)
+                
+                # Add summarized context as a system message
+                if summarized_context:
+                    messages.append(SystemMessage(content=f"Previous conversation context:\n{summarized_context}"))
+            
+            # Add the current user message
+            messages.append(HumanMessage(content=message))
             
             # Get response from Gemini
             logger.debug(f"Sending to Gemini: {message[:50]}...")
@@ -110,7 +144,81 @@ class GeminiChatService:
             
         except Exception as e:
             logger.error(f"Error in send_message: {e}", exc_info=True)
-            raise
+            # Fallback response in case of LLM failure
+            fallback_responses = [
+                "I'm here to listen and support you. Tell me more about what's on your mind.",
+                "Thank you for sharing that with me. How are you feeling about this situation?",
+                "I appreciate you opening up to me. What would be most helpful for you right now?",
+                "That sounds meaningful to you. Can you help me understand more about your experience?",
+                "I'm glad you feel comfortable sharing with me. What's been weighing on your heart lately?"
+            ]
+            
+            import random
+            fallback_response = random.choice(fallback_responses)
+            
+            return {
+                "response": fallback_response,
+                "has_personality_context": False,
+                "personality_context": None,
+                "mood_detected": "concerned",
+                "sentiment_score": 0.5,
+                "session_id": session_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "model": self.config.gemini.model,
+                "fallback_used": True,
+                "error": str(e)
+            }
+    
+    async def summarize_conversation_context(self, chat_history: list) -> str:
+        """
+        Summarize conversation history for efficient context management.
+        
+        Args:
+            chat_history: List of previous conversation messages
+            
+        Returns:
+            Summarized context string
+        """
+        if not chat_history:
+            return ""
+        
+        try:
+            # For very long conversations, create a summary
+            if len(chat_history) > 6:  # More than 3 message pairs
+                # Extract key points from recent messages
+                recent_messages = chat_history[-6:]  # Last 3 pairs
+                older_messages = chat_history[:-6]
+                
+                # Create a brief summary of older context
+                summary_prompt = [
+                    SystemMessage(content="You are an AI assistant that summarizes conversations concisely."),
+                    HumanMessage(content=f"Summarize these previous conversation points in one short sentence: " +
+                                       " ".join([f"{msg['role']}: {msg['content']}" for msg in older_messages[:10]]))
+                ]
+                
+                try:
+                    summary_response = await self.llm.ainvoke(summary_prompt)
+                    older_summary = summary_response.content[:200]  # Limit summary length
+                except Exception:
+                    # Fallback to simple concatenation
+                    older_summary = "Previous conversation about " + \
+                                  ", ".join(set([msg['content'][:20] for msg in older_messages[:5]]))
+                
+                # Combine summary with recent messages
+                context_parts = [f"Previous context: {older_summary}"]
+                for msg in recent_messages:
+                    context_parts.append(f"{msg['role']}: {msg['content']}")
+                
+                return "\n".join(context_parts)
+            else:
+                # For shorter conversations, include all messages
+                return "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history])
+                
+        except Exception as e:
+            logger.warning(f"Error summarizing conversation context: {e}")
+            # Fallback to including recent messages only
+            recent_messages = chat_history[-6:] if len(chat_history) > 6 else chat_history
+            return "\n".join([f"{msg['role']}: {msg['content']}" for msg in recent_messages])
     
     async def _load_personality_context(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -229,21 +337,51 @@ Remember: You're a companion, not a therapist. If someone is in crisis, encourag
     async def get_chat_history(
         self, 
         user_id: str, 
+        session_id: Optional[str] = None,
         limit: int = 20
     ) -> list[Dict[str, Any]]:
         """
-        Get recent chat history for a user (future feature).
+        Get recent chat history for a user, optionally filtered by session.
         
         Args:
             user_id: The user's ID
+            session_id: Optional session ID to filter messages
             limit: Maximum number of messages to retrieve
             
         Returns:
             List of chat messages
         """
-        # TODO: Implement chat history retrieval from Supabase
-        logger.warning("Chat history retrieval not yet implemented")
-        return []
+        try:
+            from core.database.supabase_client import get_supabase_client
+            supabase_client = get_supabase_client()
+            
+            # Build query with user filter
+            query = supabase_client.supabase.table("chat_messages").select(
+                "sender_type", "message_text", "timestamp"
+            ).eq("user_id", user_id)
+            
+            # Filter by session if provided
+            if session_id:
+                query = query.eq("session_id", session_id)
+            
+            # Order by timestamp and limit results
+            response = query.order("timestamp", desc=True).limit(limit).execute()
+            
+            # Convert to the format expected by Langchain
+            history = []
+            for msg in reversed(response.data):  # Reverse to get chronological order
+                history.append({
+                    "role": msg["sender_type"],
+                    "content": msg["message_text"]
+                })
+            
+            logger.info(f"Retrieved {len(history)} chat history messages for user {user_id}" + 
+                       (f" (session: {session_id})" if session_id else ""))
+            return history
+            
+        except Exception as e:
+            logger.error(f"Error retrieving chat history for user {user_id}: {e}")
+            return []
 
 
 # Singleton instance
