@@ -4,6 +4,9 @@ Disallow: /api/
 Disallow: /auth/callback/
 Disallow: /debug/
 Disallow: /debug-auth/
+Disallow: /dashboard/
+Disallow: /settings/
+Disallow: /onboarding/
 
 Sitemap: https://www.bondhu.tech/sitemap.xml
 

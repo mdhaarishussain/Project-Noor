@@ -11,25 +11,29 @@ import { CurvedMarqueeSection } from "@/components/sections/curved-marquee-secti
 import { Footer } from "@/components/sections/footer"
 import { FloatingCTA } from "@/components/floating-cta"
 import { FAQSection } from "@/components/sections/faq-section"
+import { HomePageSchemas } from "./page-schemas"
 
 export default function Home() {
   return (
-    <div className="min-h-screen">
-      <Navbar1 />
-      <main className="pt-14">
-        <HeroSection />
-        <ProblemSection />
-        <SolutionSection />
-        <MultiAgentArchitecture />
-        <InteractiveDemo />
-        <FeaturesSection />
-        <TechnicalDifferentiationPanel />
-        <PricingSection />
-        <FAQSection />
-        <CurvedMarqueeSection />
-      </main>
-      <Footer />
-      <FloatingCTA />
-    </div>
+    <>
+      <HomePageSchemas />
+      <div className="min-h-screen">
+        <Navbar1 />
+        <main className="pt-14">
+          <HeroSection />
+          <ProblemSection />
+          <SolutionSection />
+          <MultiAgentArchitecture />
+          <InteractiveDemo />
+          <FeaturesSection />
+          <TechnicalDifferentiationPanel />
+          <PricingSection />
+          <FAQSection />
+          <CurvedMarqueeSection />
+        </main>
+        <Footer />
+        <FloatingCTA />
+      </div>
+    </>
   )
 }
