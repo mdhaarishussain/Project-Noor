@@ -12,11 +12,13 @@ import { Footer } from "@/components/sections/footer"
 import { FloatingCTA } from "@/components/floating-cta"
 import { FAQSection } from "@/components/sections/faq-section"
 import { HomePageSchemas } from "./page-schemas"
+import { LLMOptimizedContent } from "@/components/seo/llm-optimized-content"
 
 export default function Home() {
   return (
     <>
       <HomePageSchemas />
+      <LLMOptimizedContent />
       <div className="min-h-screen">
         <Navbar1 />
         <main className="pt-14">

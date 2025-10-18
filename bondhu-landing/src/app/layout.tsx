@@ -12,8 +12,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.bondhu.tech'),
   title: {
-    default: "Bondhu - AI Mental Health Companion | Personality-Based Support for Gen Z",
-    template: "%s | Bondhu - AI Mental Health Companion",
+    default: "Bondhu - AI Mental Health Companion for Gen Z India",
+    template: "%s | Bondhu",
   },
   description:
     "AI companion that adapts to your personality through music, gaming, and content analysis. Get proactive mental health support tailored to Gen Z in India. 24/7 availability, OCEAN Big 5 personality assessment, end-to-end encrypted conversations.",
