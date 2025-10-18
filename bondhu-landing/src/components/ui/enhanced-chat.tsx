@@ -39,7 +39,6 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
   const [hasPersonalityContext, setHasPersonalityContext] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const [showQuickResponses, setShowQuickResponses] = useState(true);
   const sessionId = useRef<string>(generateSessionId()); // Use ref instead of state since it doesn't change
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,25 +50,6 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Check if this is a new daily session
-  useEffect(() => {
-    const checkDailySession = () => {
-      const today = new Date().toDateString();
-      const lastSessionDate = localStorage.getItem('bondhu_last_session_date');
-      
-      if (lastSessionDate !== today) {
-        // New day, show quick responses
-        setShowQuickResponses(true);
-        localStorage.setItem('bondhu_last_session_date', today);
-      } else {
-        // Same day, hide quick responses
-        setShowQuickResponses(false);
-      }
-    };
-    
-    checkDailySession();
-  }, []);
 
   // Get user ID from Supabase auth
   useEffect(() => {
@@ -99,13 +79,13 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
               id: Date.now() - (history.messages.length * 2) + (index * 2),
               sender: 'user' as const,
               message: item.message,
-              timestamp: new Date(item.created_at).toLocaleTimeString(),
+              timestamp: item.created_at, // Store full ISO date string
             },
             {
               id: Date.now() - (history.messages.length * 2) + (index * 2) + 1,
               sender: 'bondhu' as const,
               message: item.response,
-              timestamp: new Date(item.created_at).toLocaleTimeString(),
+              timestamp: item.created_at, // Store full ISO date string
               hasPersonalityContext: item.has_personality_context,
             }
           ]).flat();
@@ -117,7 +97,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
             id: 1,
             sender: 'bondhu',
             message: `Hello ${profile.full_name?.split(' ')[0] || 'Friend'}! 🌟 I'm Bondhu, your AI companion. I've been looking forward to continuing our conversation. How are you feeling today?`,
-            timestamp: new Date().toLocaleTimeString(),
+            timestamp: new Date().toISOString(),
           }]);
         }
       } catch (err) {
@@ -127,7 +107,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
           id: 1,
           sender: 'bondhu',
           message: `Hello ${profile.full_name?.split(' ')[0] || 'Friend'}! 🌟 I'm Bondhu, your AI companion. How are you feeling today?`,
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: new Date().toISOString(),
         }]);
       } finally {
         setIsLoadingHistory(false);
@@ -137,13 +117,6 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
     loadChatHistory();
   }, [userId, profile.full_name]);
 
-  // Auto-focus input field when component mounts and after sending message
-  useEffect(() => {
-    if (!isLoadingHistory && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isLoadingHistory, messages]);
-
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     if (!userId) {
@@ -151,14 +124,11 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
       return;
     }
 
-    // Hide quick responses after first message
-    setShowQuickResponses(false);
-
     const userMessage: Message = {
       id: Date.now(),
       sender: 'user',
       message: newMessage,
-      timestamp: new Date().toLocaleTimeString(),
+      timestamp: new Date().toISOString(),
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -174,7 +144,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
         id: Date.now() + 1,
         sender: 'bondhu',
         message: response.response,
-        timestamp: new Date(response.timestamp).toLocaleTimeString(),
+        timestamp: response.timestamp,
         hasPersonalityContext: response.has_personality_context,
       };
 
@@ -213,13 +183,13 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
               id: Date.now() - (updatedHistory.messages.length * 2) + (index * 2),
               sender: 'user' as const,
               message: item.message,
-              timestamp: new Date(item.created_at).toLocaleTimeString(),
+              timestamp: item.created_at,
             },
             {
               id: Date.now() - (updatedHistory.messages.length * 2) + (index * 2) + 1,
               sender: 'bondhu' as const,
               message: item.response,
-              timestamp: new Date(item.created_at).toLocaleTimeString(),
+              timestamp: item.created_at,
               hasPersonalityContext: item.has_personality_context,
             }
           ]).flat();
@@ -241,7 +211,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
         id: Date.now() + 1,
         sender: 'bondhu',
         message: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment. 🙏",
-        timestamp: new Date().toLocaleTimeString(),
+        timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, errorMessage]);
     }
@@ -286,6 +256,50 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
   };
 
   const reactionEmojis = ['👍', '❤️', '😊', '🤗', '✨', '🎉'];
+
+  // Helper function to group messages by date
+  const groupMessagesByDate = (messages: Message[]) => {
+    const groups: { [key: string]: Message[] } = {};
+    messages.forEach(message => {
+      const date = new Date(message.timestamp);
+      const dateKey = date.toDateString(); // e.g., "Mon Oct 18 2025"
+      
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(message);
+    });
+    return groups;
+  };
+
+  // Helper function to format date for display
+  const formatDateBadge = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Check if it's today
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    }
+    
+    // Check if it's yesterday
+    if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    }
+    
+    // For dates within the current week
+    const oneWeekAgo = new Date(today);
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    if (date > oneWeekAgo) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' }); // e.g., "Monday"
+    }
+    
+    // For older dates
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); // e.g., "October 18, 2025"
+  };
 
   return (
     <div className="w-full">
@@ -375,12 +389,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
 
           {/* Messages Area */}
           <CardContent className="p-0">
-            <div className={cn(
-              "overflow-y-auto p-6 space-y-6 scroll-smooth transition-all duration-300",
-              showQuickResponses 
-                ? "h-[50vh] max-h-[500px] min-h-[400px]"
-                : "h-[60vh] max-h-[620px] min-h-[520px]"
-            )}>
+            <div className="h-[50vh] max-h-[500px] min-h-[400px] overflow-y-auto p-6 space-y-6 scroll-smooth">
               {isLoadingHistory ? (
                 <div className="flex flex-col items-center justify-center h-full space-y-3">
                   <BondhuAvatar 
@@ -392,11 +401,21 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
                   <p className="text-sm text-muted-foreground">Loading your conversation history...</p>
                 </div>
               ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} group`}
-                  >
+                Object.entries(groupMessagesByDate(messages)).map(([dateKey, dateMessages]) => (
+                  <div key={dateKey}>
+                    {/* Date Badge */}
+                    <div className="flex justify-center my-4">
+                      <div className="bg-emerald-500 dark:bg-emerald-600 text-white dark:text-emerald-50 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm">
+                        {formatDateBadge(dateMessages[0].timestamp)}
+                      </div>
+                    </div>
+                    
+                    {/* Messages for this date */}
+                    {dateMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} group`}
+                      >
                     <div
                       className={cn(
                         "max-w-xs lg:max-w-md relative",
@@ -429,7 +448,7 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
                           "text-xs",
                           msg.sender === 'user' ? "text-primary-foreground/70" : "text-muted-foreground"
                         )}>
-                          {msg.timestamp}
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                         
                         {msg.sender === 'bondhu' && (
@@ -477,9 +496,12 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
                         </div>
                       )}
                     </div>
+                      </div>
+                    </div>
+                  ))}
                   </div>
-                </div>
-              )))}
+                )))
+              )}
 
               {isTyping && (
                 <div className="flex justify-start group animate-fade-in">
@@ -509,26 +531,24 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Quick Messages - Show only on first session of the day */}
-            {showQuickResponses && (
-              <div className="px-6 py-4 border-t bg-gradient-to-r from-primary/2 to-primary/5">
-                <p className="text-xs font-medium text-muted-foreground mb-3">Quick responses:</p>
-                <div className="flex flex-wrap gap-2">
-                  {quickMessages.map((quick, index) => (
-                    <Button
-                      key={index}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs hover:bg-primary/10 hover:border-primary/30 transition-colors px-3 py-1"
-                      onClick={() => handleQuickMessage(quick.text)}
-                    >
-                      <span className="mr-1">{quick.emoji}</span>
-                      {quick.text}
-                    </Button>
-                  ))}
-                </div>
+            {/* Quick Messages */}
+            <div className="px-6 py-4 border-t bg-gradient-to-r from-primary/2 to-primary/5">
+              <p className="text-xs font-medium text-muted-foreground mb-3">Quick responses:</p>
+              <div className="flex flex-wrap gap-2">
+                {quickMessages.map((quick, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs hover:bg-primary/10 hover:border-primary/30 transition-colors px-3 py-1"
+                    onClick={() => handleQuickMessage(quick.text)}
+                  >
+                    <span className="mr-1">{quick.emoji}</span>
+                    {quick.text}
+                  </Button>
+                ))}
               </div>
-            )}
+            </div>
 
             {/* Input Area */}
             <div className="p-6 border-t bg-gradient-to-r from-primary/3 to-primary/6 rounded-b-xl">
