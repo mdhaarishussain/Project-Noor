@@ -496,11 +496,11 @@ export function EnhancedChat({ profile }: EnhancedChatProps) {
                         </div>
                       )}
                     </div>
-                      </div>
-                    </div>
-                  ))}
                   </div>
-                )))
+                </div>
+              ))}
+                  </div>
+                ))
               )}
 
               {isTyping && (
